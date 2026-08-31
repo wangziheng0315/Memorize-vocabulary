@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "admin-users-single-system-admin-index" ON "admin-users" USING btree ("role") WHERE "admin-users"."role" = '系统管理员';
