@@ -11,7 +11,7 @@ import { AlertCircle, Sparkles, Mail, Lock } from "lucide-react"
 
 /**
  * 管理员登录页面
- * 只有超级管理员添加的账号才能登录
+ * 只有系统管理员添加的账号才能登录
  */
 export default function SignInPage() {
   const router = useRouter()
@@ -29,7 +29,7 @@ export default function SignInPage() {
     }
   }, [user, isLoading, router])
 
-  // 如果还没有超级管理员，跳转到注册页
+  // 如果还没有系统管理员，跳转到注册页
   useEffect(() => {
     if (!isLoading && !hasSuperAdmin && !user) {
       router.replace("/signup")
@@ -117,7 +117,7 @@ export default function SignInPage() {
             </div>
           </CardContent>
 
-          <CardFooter className="pb-6">
+          <CardFooter className="border-t-0 bg-transparent pb-6">
             <Button
               type="submit"
               className="h-11 w-full rounded-lg font-medium"

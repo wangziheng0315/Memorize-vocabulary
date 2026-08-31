@@ -10,8 +10,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { AlertCircle, Shield, Mail, Lock, User } from "lucide-react"
 
 /**
- * 超级管理员首次注册页面
- * 系统初始化时使用，只能注册一个超级管理员
+ * 系统管理员首次注册页面
+ * 系统初始化时使用，只能注册一个系统管理员
  */
 export default function SignUpPage() {
   const router = useRouter()
@@ -31,7 +31,7 @@ export default function SignUpPage() {
     }
   }, [user, isLoading, router])
 
-  // 如果已有超级管理员，跳转到登录页
+  // 如果已有系统管理员，跳转到登录页
   useEffect(() => {
     if (!isLoading && hasSuperAdmin && !user) {
       router.replace("/signin")
@@ -87,7 +87,7 @@ export default function SignUpPage() {
             <Shield className="size-6 text-primary" />
           </div>
           <CardTitle className="text-2xl font-bold tracking-tight">初始化系统</CardTitle>
-          <CardDescription>注册超级管理员账号，此操作仅需一次</CardDescription>
+          <CardDescription>注册系统管理员账号，此操作仅需一次</CardDescription>
         </CardHeader>
 
         <form onSubmit={handleSubmit}>
@@ -165,17 +165,17 @@ export default function SignUpPage() {
             </div>
           </CardContent>
 
-          <CardFooter className="flex-col gap-4 pb-6">
+          <CardFooter className="flex-col gap-4 border-t-0 bg-transparent pb-6">
             <Button
               type="submit"
               className="h-11 w-full rounded-lg font-medium"
               disabled={isSubmitting}
             >
-              {isSubmitting ? "注册中..." : "创建超级管理员"}
+              {isSubmitting ? "注册中..." : "创建系统管理员"}
             </Button>
 
             <p className="text-center text-xs text-muted-foreground">
-              超级管理员拥有系统最高权限，仅能注册一次
+              系统管理员拥有系统最高权限，仅能注册一次
             </p>
           </CardFooter>
         </form>

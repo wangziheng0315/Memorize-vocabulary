@@ -7,10 +7,10 @@ import { Skeleton } from "@/components/ui/skeleton"
 
 /**
  * 根路径页面
- * 根据登录状态和超级管理员存在情况自动跳转：
+ * 根据登录状态和系统管理员存在情况自动跳转：
  * - 已登录 → /books
- * - 未登录 + 已有超级管理员 → /signin
- * - 未登录 + 无超级管理员 → /signup（首次注册）
+ * - 未登录 + 已有系统管理员 → /signin
+ * - 未登录 + 无系统管理员 → /signup（首次注册）
  */
 export default function Home() {
   const router = useRouter()
