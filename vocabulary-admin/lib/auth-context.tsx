@@ -18,9 +18,10 @@ type Result = { success: boolean; error?: string }
 interface AuthContextType {
   user: AdminUser | null
   isLoading: boolean
-  hasSuperAdmin: boolean
+  hasAdmin: boolean
+  refreshUser: () => Promise<void>
   signIn: (email: string, password: string) => Promise<Result>
-  signUpSuperAdmin: (name: string, email: string, password: string) => Promise<Result>
+  signUpFirstAdmin: (name: string, email: string, password: string) => Promise<Result>
   signOut: () => Promise<void>
   getAllAdmins: () => Promise<AdminUser[]>
   addAdmin: (name: string, email: string, password: string, role?: AdminRole) => Promise<Result>
@@ -33,7 +34,8 @@ const AuthContext = createContext<AuthContextType | null>(null)
 /** 读取接口响应，统一转换成页面需要的结果格式。 */
 async function requestJson(url: string, options?: RequestInit) {
   const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...options?.headers } })
-  const data = await response.json()
+  let data: any = {}
+  try { data = await response.json() } catch { /* 服务端返回非 JSON 时忽略，由 response.ok 判断 */ }
   return { response, data }
 }
 
@@ -41,30 +43,37 @@ async function requestJson(url: string, options?: RequestInit) {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [hasSuperAdmin, setHasSuperAdmin] = useState(false)
+  const [hasAdmin, setHasAdmin] = useState(false)
 
   useEffect(() => {
     requestJson("/api/auth/status")
       .then(({ data }) => {
         setUser(data.user)
-        setHasSuperAdmin(data.hasAdmin)
+        setHasAdmin(data.hasAdmin)
       })
       .finally(() => setIsLoading(false))
   }, [])
+
+  /** 重新从服务端获取当前用户信息（用于角色变更后刷新）。 */
+  const refreshUser = async () => {
+    const { data } = await requestJson("/api/auth/status")
+    setUser(data.user)
+    setHasAdmin(data.hasAdmin)
+  }
 
   const signIn = async (email: string, password: string): Promise<Result> => {
     const { response, data } = await requestJson("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password }) })
     if (!response.ok) return { success: false, error: data.error }
     setUser(data.user)
-    setHasSuperAdmin(true)
+    setHasAdmin(true)
     return { success: true }
   }
 
-  const signUpSuperAdmin = async (name: string, email: string, password: string): Promise<Result> => {
+  const signUpFirstAdmin = async (name: string, email: string, password: string): Promise<Result> => {
     const { response, data } = await requestJson("/api/auth/signup", { method: "POST", body: JSON.stringify({ name, email, password }) })
     if (!response.ok) return { success: false, error: data.error }
     setUser(data.user)
-    setHasSuperAdmin(true)
+    setHasAdmin(true)
     return { success: true }
   }
 
@@ -93,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return response.ok ? { success: true } : { success: false, error: data.error }
   }
 
-  return <AuthContext.Provider value={{ user, isLoading, hasSuperAdmin, signIn, signUpSuperAdmin, signOut, getAllAdmins, addAdmin, updateAdmin, removeAdmin }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, isLoading, hasAdmin, refreshUser, signIn, signUpFirstAdmin, signOut, getAllAdmins, addAdmin, updateAdmin, removeAdmin }}>{children}</AuthContext.Provider>
 }
 
 /** 获取认证上下文。 */

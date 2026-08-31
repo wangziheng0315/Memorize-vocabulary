@@ -11,11 +11,13 @@ async function requireManager() {
   return current
 }
 
-/** 查询管理员列表。 */
+/** 查询管理员列表，按角色优先级排序：系统管理员 → 超级管理员 → 普通管理员。 */
 export async function GET() {
   const current = await requireManager()
   if (!current) return NextResponse.json({ error: "无权访问" }, { status: 403 })
   const admins = await db.select().from(adminUsers)
+  const roleOrder: Record<AdminRole, number> = { "系统管理员": 0, "超级管理员": 1, "普通管理员": 2 }
+  admins.sort((a, b) => roleOrder[a.role] - roleOrder[b.role])
   return NextResponse.json({ admins: admins.map(toPublicAdmin) })
 }
 
@@ -73,8 +75,9 @@ export async function PATCH(request: Request) {
 
   if (targetRole === "系统管理员" && current.role === "系统管理员" && target.id !== current.id) {
     const result = await db.transaction(async (tx) => {
-      const [newSystemAdmin] = await tx.update(adminUsers).set({ role: "系统管理员", updatedAt: new Date() }).where(eq(adminUsers.id, target.id)).returning()
+      // 先降级原管理员，再升级目标管理员，避免唯一索引冲突
       const [formerSystemAdmin] = await tx.update(adminUsers).set({ role: "超级管理员", updatedAt: new Date() }).where(eq(adminUsers.id, current.id)).returning()
+      const [newSystemAdmin] = await tx.update(adminUsers).set({ role: "系统管理员", updatedAt: new Date() }).where(eq(adminUsers.id, target.id)).returning()
       return { newSystemAdmin, formerSystemAdmin }
     })
     return NextResponse.json({ admins: [toPublicAdmin(result.newSystemAdmin), toPublicAdmin(result.formerSystemAdmin)] })

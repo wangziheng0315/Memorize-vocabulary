@@ -14,18 +14,18 @@ import { Skeleton } from "@/components/ui/skeleton"
  */
 export default function Home() {
   const router = useRouter()
-  const { user, isLoading, hasSuperAdmin } = useAuth()
+  const { user, isLoading, hasAdmin } = useAuth()
 
   useEffect(() => {
     if (isLoading) return
     if (user) {
       router.replace("/books")
-    } else if (hasSuperAdmin) {
+    } else if (hasAdmin) {
       router.replace("/signin")
     } else {
       router.replace("/signup")
     }
-  }, [user, isLoading, hasSuperAdmin, router])
+  }, [user, isLoading, hasAdmin, router])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">

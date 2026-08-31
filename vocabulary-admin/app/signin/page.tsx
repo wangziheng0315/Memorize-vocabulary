@@ -15,7 +15,7 @@ import { AlertCircle, Sparkles, Mail, Lock } from "lucide-react"
  */
 export default function SignInPage() {
   const router = useRouter()
-  const { user, signIn, isLoading, hasSuperAdmin } = useAuth()
+  const { user, signIn, isLoading, hasAdmin } = useAuth()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -31,10 +31,10 @@ export default function SignInPage() {
 
   // 如果还没有系统管理员，跳转到注册页
   useEffect(() => {
-    if (!isLoading && !hasSuperAdmin && !user) {
+    if (!isLoading && !hasAdmin && !user) {
       router.replace("/signup")
     }
-  }, [hasSuperAdmin, isLoading, user, router])
+  }, [hasAdmin, isLoading, user, router])
 
   // 处理登录
   const handleSubmit = async (e: React.FormEvent) => {

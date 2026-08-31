@@ -15,7 +15,7 @@ import { AlertCircle, Shield, Mail, Lock, User } from "lucide-react"
  */
 export default function SignUpPage() {
   const router = useRouter()
-  const { user, signUpSuperAdmin, isLoading, hasSuperAdmin } = useAuth()
+  const { user, signUpFirstAdmin, isLoading, hasAdmin } = useAuth()
 
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -33,10 +33,10 @@ export default function SignUpPage() {
 
   // 如果已有系统管理员，跳转到登录页
   useEffect(() => {
-    if (!isLoading && hasSuperAdmin && !user) {
+    if (!isLoading && hasAdmin && !user) {
       router.replace("/signin")
     }
-  }, [hasSuperAdmin, isLoading, user, router])
+  }, [hasAdmin, isLoading, user, router])
 
   // 处理注册提交
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,7 +59,7 @@ export default function SignUpPage() {
     }
 
     setIsSubmitting(true)
-    const result = await signUpSuperAdmin(name, email, password)
+    const result = await signUpFirstAdmin(name, email, password)
     setIsSubmitting(false)
 
     if (result.success) {

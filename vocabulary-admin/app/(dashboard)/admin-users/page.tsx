@@ -27,20 +27,22 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAuth, type AdminUser, type AdminRole } from "@/lib/auth-context"
-import { Plus, Trash2, Shield, Mail, Lock, User, Pencil } from "lucide-react"
+import { Plus, Trash2, Shield, Mail, Lock, User, Pencil, ArrowRightLeft } from "lucide-react"
 
 /**
  * 管理员管理页面
  * 系统管理员可以添加和删除普通管理员
  */
 export default function AdminUsersPage() {
-  const { user, getAllAdmins, addAdmin, updateAdmin, removeAdmin } = useAuth()
+  const { user, getAllAdmins, addAdmin, updateAdmin, removeAdmin, refreshUser } = useAuth()
   const [admins, setAdmins] = useState<AdminUser[]>([])
 
   // 弹窗状态
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAdmin, setEditingAdmin] = useState<AdminUser | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null)
+  const [transferTarget, setTransferTarget] = useState<AdminUser | null>(null)
+  const [isTransferring, setIsTransferring] = useState(false)
 
   // 表单状态
   const [formName, setFormName] = useState("")
@@ -50,9 +52,13 @@ export default function AdminUsersPage() {
   const [formError, setFormError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // 按角色优先级排序：系统管理员 → 超级管理员 → 普通管理员
+  const roleOrder: Record<AdminRole, number> = { "系统管理员": 0, "超级管理员": 1, "普通管理员": 2 }
+  const sortAdmins = (list: AdminUser[]) => [...list].sort((a, b) => roleOrder[a.role] - roleOrder[b.role])
+
   // 加载管理员列表
   useEffect(() => {
-    getAllAdmins().then(setAdmins)
+    getAllAdmins().then((list) => setAdmins(sortAdmins(list)))
   }, [getAllAdmins])
 
   // 获取姓名首字母
@@ -100,7 +106,7 @@ export default function AdminUsersPage() {
     setIsSubmitting(false)
 
     if (result.success) {
-      getAllAdmins().then(setAdmins)
+      getAllAdmins().then((list) => setAdmins(sortAdmins(list)))
       setDialogOpen(false)
     } else {
       setFormError(result.error || (editingAdmin ? "保存失败" : "添加失败"))
@@ -111,9 +117,24 @@ export default function AdminUsersPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return
     const result = await removeAdmin(deleteTarget.id)
-    if (result.success) getAllAdmins().then(setAdmins)
+    if (result.success) getAllAdmins().then((list) => setAdmins(sortAdmins(list)))
     else setFormError(result.error || "删除失败")
     setDeleteTarget(null)
+  }
+
+  // 转让系统管理员权限
+  const handleTransfer = async () => {
+    if (!transferTarget) return
+    setIsTransferring(true)
+    const result = await updateAdmin(transferTarget.id, { role: "系统管理员" })
+    setIsTransferring(false)
+    if (result.success) {
+      await refreshUser() // 立即刷新当前用户角色，避免页面显示过期信息
+      getAllAdmins().then((list) => setAdmins(sortAdmins(list)))
+    } else {
+      setFormError(result.error || "转让失败")
+    }
+    setTransferTarget(null)
   }
 
   return (
@@ -162,7 +183,7 @@ export default function AdminUsersPage() {
                 </TableRow>
               ) : (
                 admins.map((admin) => {
-                  const isSuper = admin.role === "系统管理员"
+                  const isSystemAdmin = admin.role === "系统管理员"
                   const isSelf = user?.id === admin.id
                   return (
                     <TableRow key={admin.id}>
@@ -170,7 +191,7 @@ export default function AdminUsersPage() {
                         <Avatar className="size-8 ring-2 ring-border/50">
                           <AvatarFallback
                             className={`text-xs font-medium ${
-                              isSuper
+                              isSystemAdmin
                                 ? "bg-primary/10 text-primary"
                                 : "bg-secondary text-secondary-foreground"
                             }`}
@@ -188,16 +209,21 @@ export default function AdminUsersPage() {
                       <TableCell className="text-muted-foreground">{admin.email}</TableCell>
                       <TableCell>
                         <Badge
-                          variant={isSuper ? "default" : "secondary"}
+                          variant={isSystemAdmin ? "default" : "secondary"}
                           className="font-normal"
                         >
                           {admin.role}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {admin.createdAt}
+                        {new Date(admin.createdAt).toLocaleDateString("zh-CN")}
                       </TableCell>
                       <TableCell className="text-right">
+                        {user?.role === "系统管理员" && !isSelf && (
+                          <Button variant="ghost" size="icon-xs" onClick={() => setTransferTarget(admin)} title="转让系统管理员权限">
+                            <ArrowRightLeft className="size-3.5" />
+                          </Button>
+                        )}
                         {((user?.role === "系统管理员") ||
                           (user?.role === "超级管理员" && admin.role === "普通管理员")) && (
                           <Button variant="ghost" size="icon-xs" onClick={() => openEditDialog(admin)} title="编辑管理员">
@@ -209,10 +235,10 @@ export default function AdminUsersPage() {
                             variant="ghost"
                             size="icon-xs"
                             onClick={() => setDeleteTarget(admin)}
-                            disabled={isSuper || isSelf || (user?.role === "超级管理员" && admin.role !== "普通管理员")}
-                            title={isSuper ? "系统管理员不可删除" : isSelf ? "不能删除自己" : "删除"}
+                            disabled={isSystemAdmin || isSelf || (user?.role === "超级管理员" && admin.role !== "普通管理员")}
+                            title={isSystemAdmin ? "系统管理员不可删除" : isSelf ? "不能删除自己" : "删除"}
                           >
-                            <Trash2 className={`size-3.5 ${isSuper || isSelf ? "text-muted-foreground/30" : "text-red-500"}`} />
+                            <Trash2 className={`size-3.5 ${isSystemAdmin || isSelf ? "text-muted-foreground/30" : "text-red-500"}`} />
                           </Button>
                         )}
                       </TableCell>
@@ -229,9 +255,9 @@ export default function AdminUsersPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>添加管理员</DialogTitle>
+            <DialogTitle>{editingAdmin ? "编辑管理员" : "添加管理员"}</DialogTitle>
             <DialogDescription>
-              填写新管理员的信息，创建后即可登录后台
+              {editingAdmin ? "修改管理员信息，密码留空表示不修改" : "填写新管理员的信息，创建后即可登录后台"}
             </DialogDescription>
           </DialogHeader>
 
@@ -285,17 +311,20 @@ export default function AdminUsersPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="adminRole">角色</Label>
-              <select
-                id="adminRole"
-                value={formRole}
-                onChange={(e) => setFormRole(e.target.value as AdminRole)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                disabled={user?.role !== "系统管理员" || editingAdmin?.id === user?.id}
-              >
-                <option value="普通管理员">普通管理员</option>
-                <option value="超级管理员">超级管理员</option>
-                <option value="系统管理员">系统管理员</option>
-              </select>
+              {editingAdmin?.role === "系统管理员" ? (
+                <Input id="adminRole" value="系统管理员" disabled />
+              ) : (
+                <select
+                  id="adminRole"
+                  value={formRole}
+                  onChange={(e) => setFormRole(e.target.value as AdminRole)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  disabled={user?.role !== "系统管理员"}
+                >
+                  <option value="普通管理员">普通管理员</option>
+                  {user?.role === "系统管理员" && <option value="超级管理员">超级管理员</option>}
+                </select>
+              )}
             </div>
           </div>
 
@@ -307,11 +336,29 @@ export default function AdminUsersPage() {
               onClick={handleAdd}
               disabled={isSubmitting || !formName.trim() || !formEmail.trim() || (!editingAdmin && !formPassword.trim())}
             >
-              {isSubmitting ? "添加中..." : "添加"}
+              {isSubmitting ? (editingAdmin ? "保存中..." : "添加中...") : (editingAdmin ? "保存" : "添加")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 转让确认弹窗 */}
+      <AlertDialog open={!!transferTarget} onOpenChange={() => setTransferTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认转让系统管理员权限</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要将系统管理员权限转让给「{transferTarget?.name}」吗？转让后，你将自动降级为超级管理员。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isTransferring}>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleTransfer} disabled={isTransferring}>
+              {isTransferring ? "转让中..." : "确认转让"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* 删除确认弹窗 */}
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
