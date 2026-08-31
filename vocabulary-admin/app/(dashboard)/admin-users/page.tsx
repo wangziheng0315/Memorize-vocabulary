@@ -26,31 +26,33 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useAuth, type AdminUser } from "@/lib/auth-context"
-import { Plus, Trash2, Shield, Mail, Lock, User } from "lucide-react"
+import { useAuth, type AdminUser, type AdminRole } from "@/lib/auth-context"
+import { Plus, Trash2, Shield, Mail, Lock, User, Pencil } from "lucide-react"
 
 /**
  * 管理员管理页面
- * 超级管理员可以添加和删除普通管理员
+ * 系统管理员可以添加和删除普通管理员
  */
 export default function AdminUsersPage() {
-  const { user, getAllAdmins, addAdmin, removeAdmin } = useAuth()
+  const { user, getAllAdmins, addAdmin, updateAdmin, removeAdmin } = useAuth()
   const [admins, setAdmins] = useState<AdminUser[]>([])
 
   // 弹窗状态
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingAdmin, setEditingAdmin] = useState<AdminUser | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null)
 
   // 表单状态
   const [formName, setFormName] = useState("")
   const [formEmail, setFormEmail] = useState("")
   const [formPassword, setFormPassword] = useState("")
+  const [formRole, setFormRole] = useState<AdminRole>("普通管理员")
   const [formError, setFormError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // 加载管理员列表
   useEffect(() => {
-    setAdmins(getAllAdmins())
+    getAllAdmins().then(setAdmins)
   }, [getAllAdmins])
 
   // 获取姓名首字母
@@ -58,9 +60,21 @@ export default function AdminUsersPage() {
 
   // 打开新增弹窗
   const openCreateDialog = () => {
+    setEditingAdmin(null)
     setFormName("")
     setFormEmail("")
     setFormPassword("")
+    setFormRole("普通管理员")
+    setFormError("")
+    setDialogOpen(true)
+  }
+
+  const openEditDialog = (admin: AdminUser) => {
+    setEditingAdmin(admin)
+    setFormName(admin.name)
+    setFormEmail(admin.email)
+    setFormPassword("")
+    setFormRole(admin.role)
     setFormError("")
     setDialogOpen(true)
   }
@@ -69,33 +83,36 @@ export default function AdminUsersPage() {
   const handleAdd = async () => {
     setFormError("")
 
-    if (!formName.trim() || !formEmail.trim() || !formPassword.trim()) {
+    if (!formName.trim() || !formEmail.trim() || (!editingAdmin && !formPassword.trim())) {
       setFormError("请填写所有字段")
       return
     }
 
-    if (formPassword.length < 6) {
+    if (formPassword && formPassword.length < 6) {
       setFormError("密码至少需要 6 个字符")
       return
     }
 
     setIsSubmitting(true)
-    const result = await addAdmin(formName, formEmail, formPassword)
+    const result = editingAdmin
+      ? await updateAdmin(editingAdmin.id, { name: formName, email: formEmail, role: formRole, ...(formPassword ? { password: formPassword } : {}) })
+      : await addAdmin(formName, formEmail, formPassword, formRole)
     setIsSubmitting(false)
 
     if (result.success) {
-      setAdmins(getAllAdmins())
+      getAllAdmins().then(setAdmins)
       setDialogOpen(false)
     } else {
-      setFormError(result.error || "添加失败")
+      setFormError(result.error || (editingAdmin ? "保存失败" : "添加失败"))
     }
   }
 
   // 删除管理员
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return
-    removeAdmin(deleteTarget.id)
-    setAdmins(getAllAdmins())
+    const result = await removeAdmin(deleteTarget.id)
+    if (result.success) getAllAdmins().then(setAdmins)
+    else setFormError(result.error || "删除失败")
     setDeleteTarget(null)
   }
 
@@ -145,7 +162,7 @@ export default function AdminUsersPage() {
                 </TableRow>
               ) : (
                 admins.map((admin) => {
-                  const isSuper = admin.role === "超级管理员"
+                  const isSuper = admin.role === "系统管理员"
                   const isSelf = user?.id === admin.id
                   return (
                     <TableRow key={admin.id}>
@@ -181,25 +198,23 @@ export default function AdminUsersPage() {
                         {admin.createdAt}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() => setDeleteTarget(admin)}
-                          disabled={isSuper || isSelf}
-                          title={
-                            isSuper
-                              ? "超级管理员不可删除"
-                              : isSelf
-                                ? "不能删除自己"
-                                : "删除"
-                          }
-                        >
-                          <Trash2
-                            className={`size-3.5 ${
-                              isSuper || isSelf ? "text-muted-foreground/30" : "text-red-500"
-                            }`}
-                          />
-                        </Button>
+                        {((user?.role === "系统管理员") ||
+                          (user?.role === "超级管理员" && admin.role === "普通管理员")) && (
+                          <Button variant="ghost" size="icon-xs" onClick={() => openEditDialog(admin)} title="编辑管理员">
+                            <Pencil className="size-3.5" />
+                          </Button>
+                        )}
+                        {user?.role !== "普通管理员" && (
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            onClick={() => setDeleteTarget(admin)}
+                            disabled={isSuper || isSelf || (user?.role === "超级管理员" && admin.role !== "普通管理员")}
+                            title={isSuper ? "系统管理员不可删除" : isSelf ? "不能删除自己" : "删除"}
+                          >
+                            <Trash2 className={`size-3.5 ${isSuper || isSelf ? "text-muted-foreground/30" : "text-red-500"}`} />
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   )
@@ -261,12 +276,26 @@ export default function AdminUsersPage() {
                 <Input
                   id="adminPassword"
                   type="password"
-                  placeholder="至少 6 个字符"
+                  placeholder={editingAdmin ? "留空表示不修改" : "至少 6 个字符"}
                   value={formPassword}
                   onChange={(e) => setFormPassword(e.target.value)}
                   className="h-10 pl-9"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="adminRole">角色</Label>
+              <select
+                id="adminRole"
+                value={formRole}
+                onChange={(e) => setFormRole(e.target.value as AdminRole)}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                disabled={user?.role !== "系统管理员" || editingAdmin?.id === user?.id}
+              >
+                <option value="普通管理员">普通管理员</option>
+                <option value="超级管理员">超级管理员</option>
+                <option value="系统管理员">系统管理员</option>
+              </select>
             </div>
           </div>
 
@@ -276,7 +305,7 @@ export default function AdminUsersPage() {
             </Button>
             <Button
               onClick={handleAdd}
-              disabled={isSubmitting || !formName.trim() || !formEmail.trim() || !formPassword.trim()}
+              disabled={isSubmitting || !formName.trim() || !formEmail.trim() || (!editingAdmin && !formPassword.trim())}
             >
               {isSubmitting ? "添加中..." : "添加"}
             </Button>

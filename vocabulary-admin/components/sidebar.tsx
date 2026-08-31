@@ -62,7 +62,7 @@ export function Sidebar() {
         <p className="px-2 pb-2 pt-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
           导航菜单
         </p>
-        {menuItems.map((item) => {
+        {menuItems.filter((item) => item.href !== "/admin-users" || user?.role !== "普通管理员").map((item) => {
           const isActive = pathname === item.href
           return (
             <Link key={item.href} href={item.href}>
@@ -105,16 +105,18 @@ export function Sidebar() {
 
           {/* 退出按钮 */}
           <Tooltip>
-            <TooltipTrigger>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={handleSignOut}
-                className="text-muted-foreground hover:bg-red-50 hover:text-red-500"
-              >
-                <LogOut className="size-3.5" />
-              </Button>
-            </TooltipTrigger>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={handleSignOut}
+                  className="text-muted-foreground hover:bg-red-50 hover:text-red-500"
+                >
+                  <LogOut className="size-3.5" />
+                </Button>
+              }
+            />
             <TooltipContent side="right" className="text-xs">退出登录</TooltipContent>
           </Tooltip>
         </div>
