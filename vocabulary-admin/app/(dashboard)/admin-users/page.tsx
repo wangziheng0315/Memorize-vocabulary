@@ -27,14 +27,14 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAuth, type AdminUser, type AdminRole } from "@/lib/auth-context"
-import { Plus, Trash2, Shield, Mail, Lock, User, Pencil, ArrowRightLeft } from "lucide-react"
+import { Plus, UserX, UserCheck, Shield, Mail, Lock, User, Pencil, ArrowRightLeft } from "lucide-react"
 
 /**
  * 管理员管理页面
  * 系统管理员可以添加和删除普通管理员
  */
 export default function AdminUsersPage() {
-  const { user, getAllAdmins, addAdmin, updateAdmin, removeAdmin, refreshUser } = useAuth()
+  const { user, getAllAdmins, addAdmin, updateAdmin, removeAdmin, setAdminStatus, refreshUser } = useAuth()
   const [admins, setAdmins] = useState<AdminUser[]>([])
 
   // 弹窗状态
@@ -113,13 +113,20 @@ export default function AdminUsersPage() {
     }
   }
 
-  // 删除管理员
+  // 回收管理员：保留账号记录，但立即禁止登录
   const handleDelete = async () => {
     if (!deleteTarget) return
     const result = await removeAdmin(deleteTarget.id)
     if (result.success) getAllAdmins().then((list) => setAdmins(sortAdmins(list)))
-    else setFormError(result.error || "删除失败")
+    else setFormError(result.error || "回收失败")
     setDeleteTarget(null)
+  }
+
+  // 恢复已回收账号，使管理员可以重新登录
+  const handleRestore = async (admin: AdminUser) => {
+    const result = await setAdminStatus(admin.id, "启用")
+    if (result.success) getAllAdmins().then((list) => setAdmins(sortAdmins(list)))
+    else setFormError(result.error || "恢复失败")
   }
 
   // 转让系统管理员权限
@@ -170,6 +177,7 @@ export default function AdminUsersPage() {
                 <TableHead>姓名</TableHead>
                 <TableHead>邮箱</TableHead>
                 <TableHead className="w-[120px]">角色</TableHead>
+                <TableHead className="w-[90px]">状态</TableHead>
                 <TableHead className="w-[120px]">添加日期</TableHead>
                 <TableHead className="w-[80px] text-right">操作</TableHead>
               </TableRow>
@@ -177,7 +185,7 @@ export default function AdminUsersPage() {
             <TableBody>
               {admins.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-12 text-muted-foreground text-sm">
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground text-sm">
                     暂无管理员
                   </TableCell>
                 </TableRow>
@@ -185,8 +193,11 @@ export default function AdminUsersPage() {
                 admins.map((admin) => {
                   const isSystemAdmin = admin.role === "系统管理员"
                   const isSelf = user?.id === admin.id
+                  const isDisabled = admin.status === "禁用"
+                  const canManageTarget = user?.role === "系统管理员" ||
+                    (user?.role === "超级管理员" && admin.role === "普通管理员")
                   return (
-                    <TableRow key={admin.id}>
+                    <TableRow key={admin.id} className={isDisabled ? "opacity-60" : undefined}>
                       <TableCell>
                         <Avatar className="size-8 ring-2 ring-border/50">
                           <AvatarFallback
@@ -215,31 +226,35 @@ export default function AdminUsersPage() {
                           {admin.role}
                         </Badge>
                       </TableCell>
+                      <TableCell>
+                        <Badge variant={isDisabled ? "outline" : "secondary"} className="font-normal">
+                          {admin.status}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {new Date(admin.createdAt).toLocaleDateString("zh-CN")}
                       </TableCell>
                       <TableCell className="text-right">
-                        {user?.role === "系统管理员" && !isSelf && (
+                        {user?.role === "系统管理员" && !isSelf && !isDisabled && (
                           <Button variant="ghost" size="icon-xs" onClick={() => setTransferTarget(admin)} title="转让系统管理员权限">
                             <ArrowRightLeft className="size-3.5" />
                           </Button>
                         )}
-                        {((user?.role === "系统管理员") ||
-                          (user?.role === "超级管理员" && admin.role === "普通管理员")) && (
+                        {canManageTarget && !isDisabled && (
                           <Button variant="ghost" size="icon-xs" onClick={() => openEditDialog(admin)} title="编辑管理员">
                             <Pencil className="size-3.5" />
                           </Button>
                         )}
-                        {user?.role !== "普通管理员" && (
-                          <Button
-                            variant="ghost"
-                            size="icon-xs"
-                            onClick={() => setDeleteTarget(admin)}
-                            disabled={isSystemAdmin || isSelf || (user?.role === "超级管理员" && admin.role !== "普通管理员")}
-                            title={isSystemAdmin ? "系统管理员不可删除" : isSelf ? "不能删除自己" : "删除"}
-                          >
-                            <Trash2 className={`size-3.5 ${isSystemAdmin || isSelf ? "text-muted-foreground/30" : "text-red-500"}`} />
-                          </Button>
+                        {canManageTarget && !isSelf && !isSystemAdmin && (
+                          isDisabled ? (
+                            <Button variant="ghost" size="icon-xs" onClick={() => handleRestore(admin)} title="恢复账号">
+                              <UserCheck className="size-3.5 text-green-600" />
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="icon-xs" onClick={() => setDeleteTarget(admin)} title="回收账号">
+                              <UserX className="size-3.5 text-red-500" />
+                            </Button>
+                          )
                         )}
                       </TableCell>
                     </TableRow>
@@ -360,19 +375,19 @@ export default function AdminUsersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* 删除确认弹窗 */}
+      {/* 账号回收确认弹窗 */}
       <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogTitle>确认回收账号</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除管理员「{deleteTarget?.name}」吗？此操作不可撤销。
+              回收管理员「{deleteTarget?.name}」后，该账号会立即退出登录并禁止再次登录，但账号记录会保留，之后可以恢复。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
-              删除
+              确认回收
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1,0 +1,2 @@
+ALTER TABLE "admin-users" ADD COLUMN "status" text DEFAULT '启用' NOT NULL;--> statement-breakpoint
+ALTER TABLE "admin-users" ADD CONSTRAINT "admin-users-status-check" CHECK ("admin-users"."status" in ('启用', '禁用'));

@@ -13,6 +13,9 @@ export async function POST(request: Request) {
   if (!admin || !verifyPassword(password, admin.passwordHash)) {
     return NextResponse.json({ error: "邮箱或密码错误" }, { status: 401 })
   }
+  if (admin.status === "禁用") {
+    return NextResponse.json({ error: "该账号已被禁用，请联系系统管理员" }, { status: 403 })
+  }
   await createAdminSession(admin.id)
   return NextResponse.json({ user: toPublicAdmin(admin) })
 }

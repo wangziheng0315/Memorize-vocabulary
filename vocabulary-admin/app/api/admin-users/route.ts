@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
-import { and, eq, ne } from "drizzle-orm"
+import { eq } from "drizzle-orm"
 import { db } from "@/db"
-import { adminUsers, type AdminRole } from "@/db/schema"
+import { adminSessions, adminUsers, type AdminRole, type AdminStatus } from "@/db/schema"
 import { canManageAdmins, getCurrentAdmin, hashPassword, toPublicAdmin } from "@/lib/admin-auth"
 
 /** 统一检查管理员管理权限，普通管理员永远不能通过接口绕过前端限制。 */
@@ -65,13 +65,48 @@ export async function PATCH(request: Request) {
   const body = await request.json()
   const id = String(body.id ?? "")
   const requestedRole = body.role
+  const requestedStatus = body.status
   const validRoles = ["系统管理员", "超级管理员", "普通管理员"] as const
+  const validStatuses = ["启用", "禁用"] as const
   if (requestedRole !== undefined && !validRoles.includes(requestedRole)) {
     return NextResponse.json({ error: "管理员角色无效" }, { status: 400 })
   }
+  if (requestedStatus !== undefined && !validStatuses.includes(requestedStatus)) {
+    return NextResponse.json({ error: "管理员状态无效" }, { status: 400 })
+  }
   const targetRole = requestedRole as AdminRole | undefined
+  const targetStatus = requestedStatus as AdminStatus | undefined
   const target = (await db.select().from(adminUsers).where(eq(adminUsers.id, id)).limit(1))[0]
   if (!target) return NextResponse.json({ error: "管理员不存在" }, { status: 404 })
+
+  if (targetStatus && targetStatus !== target.status) {
+    if (target.id === current.id) {
+      return NextResponse.json({ error: "不能禁用当前登录管理员" }, { status: 400 })
+    }
+    if (target.role === "系统管理员") {
+      return NextResponse.json({ error: "系统管理员不可禁用" }, { status: 403 })
+    }
+    if (current.role === "超级管理员" && target.role !== "普通管理员") {
+      return NextResponse.json({ error: "超级管理员只能管理普通管理员" }, { status: 403 })
+    }
+
+    const admin = await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(adminUsers)
+        .set({ status: targetStatus, updatedAt: new Date() })
+        .where(eq(adminUsers.id, target.id))
+        .returning()
+      if (targetStatus === "禁用") {
+        await tx.delete(adminSessions).where(eq(adminSessions.adminId, target.id))
+      }
+      return updated
+    })
+    return NextResponse.json({ admin: toPublicAdmin(admin) })
+  }
+
+  if (target.status === "禁用") {
+    return NextResponse.json({ error: "请先启用该管理员，再修改账号信息" }, { status: 400 })
+  }
 
   if (targetRole === "系统管理员" && current.role === "系统管理员" && target.id !== current.id) {
     const result = await db.transaction(async (tx) => {
@@ -116,18 +151,27 @@ export async function PATCH(request: Request) {
   }
 }
 
-/** 删除管理员；系统管理员不能删除自己或任何系统管理员。 */
+/** 回收管理员账号：保留账号记录、改为禁用，并清除其全部登录会话。 */
 export async function DELETE(request: Request) {
   const current = await requireManager()
   if (!current) return NextResponse.json({ error: "无权访问" }, { status: 403 })
   const id = new URL(request.url).searchParams.get("id")
-  if (!id || id === current.id) return NextResponse.json({ error: "不能删除当前登录管理员" }, { status: 400 })
+  if (!id || id === current.id) return NextResponse.json({ error: "不能回收当前登录管理员" }, { status: 400 })
   const [target] = await db.select().from(adminUsers).where(eq(adminUsers.id, id)).limit(1)
   if (!target) return NextResponse.json({ error: "管理员不存在" }, { status: 404 })
-  if (target.role === "系统管理员") return NextResponse.json({ error: "系统管理员不可删除" }, { status: 403 })
+  if (target.role === "系统管理员") return NextResponse.json({ error: "系统管理员不可回收" }, { status: 403 })
   if (current.role === "超级管理员" && target.role !== "普通管理员") {
-    return NextResponse.json({ error: "超级管理员只能删除普通管理员" }, { status: 403 })
+    return NextResponse.json({ error: "超级管理员只能回收普通管理员" }, { status: 403 })
   }
-  await db.delete(adminUsers).where(and(eq(adminUsers.id, id), ne(adminUsers.role, "系统管理员")))
-  return NextResponse.json({ success: true })
+
+  const admin = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(adminUsers)
+      .set({ status: "禁用", updatedAt: new Date() })
+      .where(eq(adminUsers.id, target.id))
+      .returning()
+    await tx.delete(adminSessions).where(eq(adminSessions.adminId, target.id))
+    return updated
+  })
+  return NextResponse.json({ admin: toPublicAdmin(admin) })
 }

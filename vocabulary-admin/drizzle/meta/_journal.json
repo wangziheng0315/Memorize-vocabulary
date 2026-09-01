@@ -15,6 +15,20 @@
       "when": 1788187172556,
       "tag": "0001_sticky_johnny_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788242594390,
+      "tag": "0002_gigantic_quentin_quire",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788244852891,
+      "tag": "0003_fearless_phantom_reporter",
+      "breakpoints": true
     }
   ]
 }

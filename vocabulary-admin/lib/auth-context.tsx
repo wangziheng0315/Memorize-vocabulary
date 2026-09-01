@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
 
 export type AdminRole = "系统管理员" | "超级管理员" | "普通管理员"
+export type AdminStatus = "启用" | "禁用"
 
 /** 浏览器端可安全使用的管理员信息。 */
 export interface AdminUser {
@@ -10,6 +11,7 @@ export interface AdminUser {
   name: string
   email: string
   role: AdminRole
+  status: AdminStatus
   createdAt: string
 }
 
@@ -27,6 +29,7 @@ interface AuthContextType {
   addAdmin: (name: string, email: string, password: string, role?: AdminRole) => Promise<Result>
   updateAdmin: (id: string, data: Partial<AdminUser> & { password?: string }) => Promise<Result>
   removeAdmin: (id: string) => Promise<Result>
+  setAdminStatus: (id: string, status: AdminStatus) => Promise<Result>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -97,12 +100,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return response.ok ? { success: true } : { success: false, error: data.error }
   }
 
+  /** 回收管理员账号，服务端会保留账号记录并清除其登录会话。 */
   const removeAdmin = async (id: string): Promise<Result> => {
     const { response, data } = await requestJson(`/api/admin-users?id=${encodeURIComponent(id)}`, { method: "DELETE" })
     return response.ok ? { success: true } : { success: false, error: data.error }
   }
 
-  return <AuthContext.Provider value={{ user, isLoading, hasAdmin, refreshUser, signIn, signUpFirstAdmin, signOut, getAllAdmins, addAdmin, updateAdmin, removeAdmin }}>{children}</AuthContext.Provider>
+  /** 启用或禁用管理员账号。 */
+  const setAdminStatus = async (id: string, status: AdminStatus): Promise<Result> => {
+    const { response, data } = await requestJson("/api/admin-users", {
+      method: "PATCH",
+      body: JSON.stringify({ id, status }),
+    })
+    return response.ok ? { success: true } : { success: false, error: data.error }
+  }
+
+  return <AuthContext.Provider value={{ user, isLoading, hasAdmin, refreshUser, signIn, signUpFirstAdmin, signOut, getAllAdmins, addAdmin, updateAdmin, removeAdmin, setAdminStatus }}>{children}</AuthContext.Provider>
 }
 
 /** 获取认证上下文。 */

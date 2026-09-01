@@ -1,8 +1,8 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto"
 import { cookies } from "next/headers"
-import { and, eq, gt } from "drizzle-orm"
+import { and, eq, gt, lte } from "drizzle-orm"
 import { db } from "@/db"
-import { adminSessions, adminUsers, type AdminRole } from "@/db/schema"
+import { adminSessions, adminUsers, type AdminRole, type AdminStatus } from "@/db/schema"
 
 export const SESSION_COOKIE = "vocabulary-admin-session"
 const SESSION_DAYS = 7
@@ -12,6 +12,7 @@ export type PublicAdmin = {
   name: string
   email: string
   role: AdminRole
+  status: AdminStatus
   createdAt: string
 }
 
@@ -43,12 +44,19 @@ export function toPublicAdmin(admin: typeof adminUsers.$inferSelect): PublicAdmi
     name: admin.name,
     email: admin.email,
     role: admin.role,
+    status: admin.status,
     createdAt: admin.createdAt.toISOString(),
   }
 }
 
+/** 删除已经超过有效期的会话，避免会话表长期堆积无效数据。 */
+export async function deleteExpiredAdminSessions() {
+  await db.delete(adminSessions).where(lte(adminSessions.expiresAt, new Date()))
+}
+
 /** 创建 7 天有效的登录会话，并把原始令牌写入 HttpOnly Cookie。 */
 export async function createAdminSession(adminId: string) {
+  await deleteExpiredAdminSessions()
   const token = randomBytes(32).toString("hex")
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000)
   await db.insert(adminSessions).values({ adminId, tokenHash: hashSessionToken(token), expiresAt })
@@ -62,7 +70,7 @@ export async function createAdminSession(adminId: string) {
   })
 }
 
-/** 校验会话是否存在、未过期且关联的管理员仍然存在。 */
+/** 校验会话是否存在、未过期，并确认关联管理员仍处于启用状态。 */
 export async function getCurrentAdmin() {
   const cookieStore = await cookies()
   const token = cookieStore.get(SESSION_COOKIE)?.value
@@ -72,7 +80,11 @@ export async function getCurrentAdmin() {
     .select({ admin: adminUsers, session: adminSessions })
     .from(adminSessions)
     .innerJoin(adminUsers, eq(adminSessions.adminId, adminUsers.id))
-    .where(and(eq(adminSessions.tokenHash, hashSessionToken(token)), gt(adminSessions.expiresAt, new Date())))
+    .where(and(
+      eq(adminSessions.tokenHash, hashSessionToken(token)),
+      gt(adminSessions.expiresAt, new Date()),
+      eq(adminUsers.status, "启用"),
+    ))
     .limit(1)
 
   if (!rows[0]) {
