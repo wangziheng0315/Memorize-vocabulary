@@ -1,0 +1,3 @@
+CREATE INDEX "admin-session-expires-at-index" ON "admin-session" USING btree ("expires_at");--> statement-breakpoint
+ALTER TABLE "admin-users" ADD CONSTRAINT "admin-users-email-lowercase-check" CHECK ("admin-users"."email" = lower("admin-users"."email"));--> statement-breakpoint
+ALTER TABLE "admin-users" ADD CONSTRAINT "admin-users-role-check" CHECK ("admin-users"."role" in ('系统管理员', '超级管理员', '普通管理员'));
