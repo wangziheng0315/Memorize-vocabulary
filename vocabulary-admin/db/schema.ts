@@ -1,4 +1,4 @@
-import { check, index, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core"
+import { bigint, check, index, integer, json, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 
 /** 管理员角色，系统管理员权限最高，超级管理员只能管理普通管理员。 */
@@ -46,4 +46,16 @@ export const adminSessions = pgTable(
     index("admin-session-admin-id-index").on(table.adminId),
     index("admin-session-expires-at-index").on(table.expiresAt),
   ],
+)
+
+/** 保存单词数据；从 GitHub 单词资料库转换后通过 CSV 导入 Supabase。 */
+export const words = pgTable(
+  "words",
+  {
+    id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
+    wordRank: integer("wordRank"),
+    headWord: text("headWord"),
+    content: json("content"),
+    bookId: text("bookId"),
+  },
 )
