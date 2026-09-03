@@ -1,0 +1,1 @@
+ALTER TABLE "words" ADD CONSTRAINT "words_bookId_books_book_id_fk" FOREIGN KEY ("bookId") REFERENCES "public"."books"("book_id") ON DELETE no action ON UPDATE no action;

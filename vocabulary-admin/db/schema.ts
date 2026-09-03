@@ -48,6 +48,21 @@ export const adminSessions = pgTable(
   ],
 )
 
+/** 单词书，每本单词书对应一个 bookId，words 表通过 bookId 关联到单词书。 */
+export const books = pgTable(
+  "books",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    title: text("title").notNull(),
+    wordCount: integer("word_count").notNull().default(0),
+    coverUrl: text("cover_url"),
+    bookId: text("book_id").notNull().unique(),
+    tags: text("tags"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+)
+
 /** 保存单词数据；从 GitHub 单词资料库转换后通过 CSV 导入 Supabase。 */
 export const words = pgTable(
   "words",
@@ -56,6 +71,6 @@ export const words = pgTable(
     wordRank: integer("wordRank"),
     headWord: text("headWord"),
     content: json("content"),
-    bookId: text("bookId"),
+    bookId: text("bookId").references(() => books.bookId),
   },
 )

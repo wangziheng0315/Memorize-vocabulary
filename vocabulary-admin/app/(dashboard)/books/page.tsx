@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -27,114 +27,149 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Pencil, Trash2, BookOpen, Search, Library } from "lucide-react"
 
-/** 单词书数据结构 */
+/** 单词书数据结构（与后端返回一致） */
 interface Book {
   id: string
-  name: string
-  description: string
+  title: string
   wordCount: number
+  coverUrl: string | null
+  bookId: string
+  tags: string | null
   createdAt: string
+  updatedAt: string
 }
 
-/** 模拟初始数据 */
-const initialBooks: Book[] = [
-  {
-    id: "1",
-    name: "四级核心词汇",
-    description: "大学英语四级考试高频词汇",
-    wordCount: 2500,
-    createdAt: "2026-08-01",
-  },
-  {
-    id: "2",
-    name: "六级核心词汇",
-    description: "大学英语六级考试高频词汇",
-    wordCount: 1800,
-    createdAt: "2026-08-15",
-  },
-  {
-    id: "3",
-    name: "考研英语词汇",
-    description: "考研英语必备词汇",
-    wordCount: 3500,
-    createdAt: "2026-08-20",
-  },
-]
+/** 前端表单字段（wordCount 用字符串避免输入框显示 0 的问题） */
+interface BookForm {
+  title: string
+  wordCount: string
+  coverUrl: string
+  bookId: string
+  tags: string
+}
+
+/** 空白表单初始值 */
+const emptyForm: BookForm = {
+  title: "",
+  wordCount: "",
+  coverUrl: "",
+  bookId: "",
+  tags: "",
+}
 
 /**
  * 单词书管理页面
- * 支持单词书的创建、编辑、删除、搜索
+ * 通过 API 与服务端通信，支持单词书的创建、编辑、删除、搜索
  */
 export default function BooksPage() {
-  const [books, setBooks] = useState<Book[]>(initialBooks)
+  const [books, setBooks] = useState<Book[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchKeyword, setSearchKeyword] = useState("")
 
   // 弹窗状态
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingBook, setEditingBook] = useState<Book | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Book | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
 
   // 表单状态
-  const [formName, setFormName] = useState("")
-  const [formDescription, setFormDescription] = useState("")
-  const [formWordCount, setFormWordCount] = useState(0)
+  const [form, setForm] = useState<BookForm>(emptyForm)
+
+  /** 从服务端加载单词书列表 */
+  const loadBooks = useCallback(async () => {
+    try {
+      const res = await fetch("/api/books")
+      const data = await res.json()
+      if (res.ok) {
+        setBooks(data.books ?? [])
+      }
+    } catch {
+      // 网络错误时保持当前列表
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadBooks() }, [loadBooks])
 
   // 搜索过滤
   const filteredBooks = books.filter(
     (book) =>
-      book.name.includes(searchKeyword) ||
-      book.description.includes(searchKeyword)
+      book.title.includes(searchKeyword) ||
+      (book.bookId && book.bookId.includes(searchKeyword)) ||
+      (book.tags && book.tags.includes(searchKeyword))
   )
 
   // 打开新增弹窗
   const openCreateDialog = () => {
     setEditingBook(null)
-    setFormName("")
-    setFormDescription("")
-    setFormWordCount(0)
+    setForm(emptyForm)
+    setError("")
     setDialogOpen(true)
   }
 
   // 打开编辑弹窗
   const openEditDialog = (book: Book) => {
     setEditingBook(book)
-    setFormName(book.name)
-    setFormDescription(book.description)
-    setFormWordCount(book.wordCount)
+    setForm({
+      title: book.title,
+      wordCount: String(book.wordCount),
+      coverUrl: book.coverUrl ?? "",
+      bookId: book.bookId,
+      tags: book.tags ?? "",
+    })
+    setError("")
     setDialogOpen(true)
   }
 
   // 保存（新增或编辑）
-  const handleSave = () => {
-    if (!formName.trim()) return
+  const handleSave = async () => {
+    if (!form.title.trim()) return
+    if (!form.bookId.trim()) return
+    setSaving(true)
+    setError("")
 
-    if (editingBook) {
-      setBooks(
-        books.map((b) =>
-          b.id === editingBook.id
-            ? { ...b, name: formName, description: formDescription, wordCount: formWordCount }
-            : b
-        )
-      )
-    } else {
-      const newBook: Book = {
-        id: crypto.randomUUID(),
-        name: formName,
-        description: formDescription,
-        wordCount: formWordCount,
-        createdAt: new Date().toISOString().slice(0, 10),
+    try {
+      const isEdit = !!editingBook
+      const res = await fetch("/api/books", {
+        method: isEdit ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isEdit
+          ? { id: editingBook.id, ...form, wordCount: Number(form.wordCount) || 0 }
+          : { ...form, wordCount: Number(form.wordCount) || 0 }
+        ),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? "保存失败")
+        return
       }
-      setBooks([...books, newBook])
+      setDialogOpen(false)
+      // 重新加载列表
+      await loadBooks()
+    } catch {
+      setError("网络错误，请稍后重试")
+    } finally {
+      setSaving(false)
     }
-
-    setDialogOpen(false)
   }
 
   // 删除单词书
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!deleteTarget) return
-    setBooks(books.filter((b) => b.id !== deleteTarget.id))
-    setDeleteTarget(null)
+    try {
+      const res = await fetch(`/api/books?id=${encodeURIComponent(deleteTarget.id)}`, {
+        method: "DELETE",
+      })
+      if (res.ok) {
+        setBooks(books.filter((b) => b.id !== deleteTarget.id))
+      }
+    } catch {
+      // 忽略错误
+    } finally {
+      setDeleteTarget(null)
+    }
   }
 
   return (
@@ -165,10 +200,10 @@ export default function BooksPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="搜索单词书名称或描述..."
+                placeholder="搜索单词书名称、bookId 或标签..."
                 value={searchKeyword}
                 onChange={(e) => setSearchKeyword(e.target.value)}
-                className="h-10 pl-9 border-none bg-transparent"
+                className="h-10 pl-9"
               />
             </div>
           </CardContent>
@@ -180,7 +215,7 @@ export default function BooksPage() {
               <BookOpen className="size-5 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{filteredBooks.length}</p>
+              <p className="text-2xl font-bold">{isLoading ? "..." : filteredBooks.length}</p>
               <p className="text-xs text-muted-foreground">单词书总数</p>
             </div>
           </CardContent>
@@ -197,15 +232,21 @@ export default function BooksPage() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[200px]">名称</TableHead>
-                <TableHead>描述</TableHead>
+                <TableHead className="w-[60px]">封面</TableHead>
+                <TableHead>标题</TableHead>
                 <TableHead className="w-[100px]">单词数</TableHead>
-                <TableHead className="w-[120px]">创建日期</TableHead>
+                <TableHead className="w-[160px]">bookId</TableHead>
                 <TableHead className="w-[100px] text-right">操作</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredBooks.length === 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-12">
+                    <p className="text-sm text-muted-foreground">加载中...</p>
+                  </TableCell>
+                </TableRow>
+              ) : filteredBooks.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-12">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
@@ -221,16 +262,47 @@ export default function BooksPage() {
               ) : (
                 filteredBooks.map((book) => (
                   <TableRow key={book.id}>
-                    <TableCell className="font-medium">{book.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{book.description}</TableCell>
+                    {/* 封面 */}
+                    <TableCell>
+                      {book.coverUrl ? (
+                        <img
+                          src={book.coverUrl}
+                          alt={book.title}
+                          className="size-10 rounded object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none"
+                          }}
+                        />
+                      ) : (
+                        <div className="flex size-10 items-center justify-center rounded bg-muted">
+                          <BookOpen className="size-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </TableCell>
+                    {/* 标题 + 标签 */}
+                    <TableCell>
+                      <div className="font-medium">{book.title}</div>
+                      {book.tags && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {book.tags.split(",").filter(Boolean).map((tag) => (
+                            <Badge key={tag} variant="outline" className="text-xs font-normal">
+                              {tag.trim()}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </TableCell>
+                    {/* 单词数量 */}
                     <TableCell>
                       <Badge variant="secondary" className="font-normal">
                         {book.wordCount.toLocaleString()} 词
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {book.createdAt}
+                    {/* bookId */}
+                    <TableCell className="font-mono text-xs text-muted-foreground">
+                      {book.bookId}
                     </TableCell>
+                    {/* 操作 */}
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-0.5">
                         <Button
@@ -269,24 +341,25 @@ export default function BooksPage() {
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label htmlFor="bookName">名称</Label>
+              <Label htmlFor="bookTitle">标题 *</Label>
               <Input
-                id="bookName"
-                placeholder="如：四级核心词汇"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
+                id="bookTitle"
+                placeholder="如：人教版小学英语三年级上册"
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
                 className="h-10"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="bookDesc">描述</Label>
+              <Label htmlFor="bookId">bookId *</Label>
               <Input
-                id="bookDesc"
-                placeholder="如：大学英语四级考试高频词汇"
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
+                id="bookId"
+                placeholder="如：PEPXiaoXue3_1"
+                value={form.bookId}
+                onChange={(e) => setForm({ ...form, bookId: e.target.value })}
                 className="h-10"
               />
+              <p className="text-xs text-muted-foreground">与 words 表中单词的 bookId 对应，创建后不建议修改</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="wordCount">单词数量</Label>
@@ -294,19 +367,42 @@ export default function BooksPage() {
                 id="wordCount"
                 type="number"
                 placeholder="0"
-                value={formWordCount}
-                onChange={(e) => setFormWordCount(Math.max(0, Number(e.target.value) || 0))}
+                value={form.wordCount}
+                onChange={(e) => setForm({ ...form, wordCount: e.target.value })}
                 className="h-10"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="coverUrl">封面 URL</Label>
+              <Input
+                id="coverUrl"
+                placeholder="https://example.com/cover.jpg"
+                value={form.coverUrl}
+                onChange={(e) => setForm({ ...form, coverUrl: e.target.value })}
+                className="h-10"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="tags">标签（逗号分隔）</Label>
+              <Input
+                id="tags"
+                placeholder="如：小学,英语,三年级"
+                value={form.tags}
+                onChange={(e) => setForm({ ...form, tags: e.target.value })}
+                className="h-10"
+              />
+            </div>
+            {error && (
+              <p className="text-sm text-red-500">{error}</p>
+            )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>
               取消
             </Button>
-            <Button onClick={handleSave} disabled={!formName.trim()}>
-              {editingBook ? "保存修改" : "创建"}
+            <Button onClick={handleSave} disabled={!form.title.trim() || !form.bookId.trim() || saving}>
+              {saving ? "保存中..." : editingBook ? "保存修改" : "创建"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -318,7 +414,7 @@ export default function BooksPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除单词书「{deleteTarget?.name}」吗？此操作不可撤销。
+              确定要删除单词书「{deleteTarget?.title}」吗？此操作不可撤销。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

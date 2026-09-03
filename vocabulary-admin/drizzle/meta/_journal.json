@@ -29,6 +29,20 @@
       "when": 1788244852891,
       "tag": "0003_fearless_phantom_reporter",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788447925348,
+      "tag": "0004_bouncy_famine",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788448151919,
+      "tag": "0005_worthless_obadiah_stane",
+      "breakpoints": true
     }
   ]
 }
