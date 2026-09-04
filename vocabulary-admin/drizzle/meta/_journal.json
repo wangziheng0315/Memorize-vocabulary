@@ -43,6 +43,13 @@
       "when": 1788448151919,
       "tag": "0005_worthless_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788511059251,
+      "tag": "0006_smooth_starhawk",
+      "breakpoints": true
     }
   ]
 }

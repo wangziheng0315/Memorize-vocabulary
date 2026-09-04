@@ -71,6 +71,6 @@ export const words = pgTable(
     wordRank: integer("wordRank"),
     headWord: text("headWord"),
     content: json("content"),
-    bookId: text("bookId").references(() => books.bookId),
+    bookId: text("bookId").references(() => books.bookId, { onDelete: "cascade" }),
   },
 )

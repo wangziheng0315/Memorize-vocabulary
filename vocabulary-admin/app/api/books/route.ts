@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { eq } from "drizzle-orm"
 import { db } from "@/db"
-import { books } from "@/db/schema"
+import { books, words } from "@/db/schema"
 import { getCurrentAdmin } from "@/lib/admin-auth"
 
 /** 所有管理员都能管理单词书，只需要检查是否已登录。 */
@@ -90,7 +90,7 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ book: updated })
 }
 
-/** 删除单词书。 */
+/** 删除单词书，同时删除该单词书关联的所有单词数据。 */
 export async function DELETE(request: Request) {
   const current = await requireLogin()
   if (!current) return NextResponse.json({ error: "请先登录" }, { status: 401 })
@@ -99,7 +99,15 @@ export async function DELETE(request: Request) {
   const id = searchParams.get("id")
   if (!id) return NextResponse.json({ error: "缺少单词书 id" }, { status: 400 })
 
-  const [deleted] = await db.delete(books).where(eq(books.id, id)).returning()
-  if (!deleted) return NextResponse.json({ error: "单词书不存在" }, { status: 404 })
+  // 先查出单词书，获取 bookId
+  const [book] = await db.select({ bookId: books.bookId }).from(books).where(eq(books.id, id)).limit(1)
+  if (!book) return NextResponse.json({ error: "单词书不存在" }, { status: 404 })
+
+  // 使用事务：先删除关联的单词，再删除单词书，保证数据一致性
+  await db.transaction(async (tx) => {
+    await tx.delete(words).where(eq(words.bookId, book.bookId))
+    await tx.delete(books).where(eq(books.id, id))
+  })
+
   return NextResponse.json({ success: true })
 }

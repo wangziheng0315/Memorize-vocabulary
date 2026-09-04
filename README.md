@@ -257,7 +257,7 @@ Drizzle 在项目中的文件结构以及配套的常用命令。
 
 
    
-## wor
+## words 表数据
 单词数据是背单词应用的核心内容。本节记录从原始数据到数据库导入的完整流程，以及 CSV 格式、数据清洗和 RLS 等配套说明。
 
 ### 数据处理流程
@@ -395,3 +395,33 @@ create table public.words (
 - SQL 建表语句可以在 Supabase 控制台查看：Table Editor → 选中表 → Definition 标签
 - 后续开发 `books` 表、`user-progress` 表等也可以用同样的方式与 AI 协作  
 
+### 单词书删除
+
+删除单词书时，需要同时删除该单词书关联的所有单词数据，避免 `words` 表中残留无主数据。
+
+实现方式有两种，本项目两者都做了：
+
+**1. 数据库层面 — `ON DELETE CASCADE`（级联删除）**
+
+在 `words` 表的外键上设置 `ON DELETE CASCADE`，当 `books` 表中的一行被删除时，数据库引擎会自动删除 `words` 表中所有 `bookId` 匹配的行，不需要在代码里手动处理。
+
+对应的 SQL：
+
+```sql
+ALTER TABLE "words" ADD CONSTRAINT "words_bookId_books_book_id_fk"
+  FOREIGN KEY ("bookId") REFERENCES "public"."books"("book_id")
+  ON DELETE CASCADE
+  ON UPDATE no action;
+```
+
+在 Drizzle schema 中的写法：
+
+```ts
+bookId: text("bookId").references(() => books.bookId, { onDelete: "cascade" })
+```
+ 
+**2. 代码层面 — 事务手动删除**
+
+API 删除接口中使用数据库事务，先删除 `words` 表中匹配的单词，再删除 `books` 表中的单词书。事务保证两步操作要么全部成功、要么全部回滚，即使 CASCADE 还没生效也能正常工作。
+
+两种方式互不冲突，代码中的手动删除可视为数据库 CASCADE 的双重保障。

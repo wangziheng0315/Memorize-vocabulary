@@ -414,7 +414,7 @@ export default function BooksPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除单词书「{deleteTarget?.title}」吗？此操作不可撤销。
+              确定要删除单词书「{deleteTarget?.title}」吗？相关联的所有单词数据也会被删除，此操作不可撤销。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
