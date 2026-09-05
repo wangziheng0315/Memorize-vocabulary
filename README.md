@@ -395,15 +395,42 @@ create table public.words (
 - SQL 建表语句可以在 Supabase 控制台查看：Table Editor → 选中表 → Definition 标签
 - 后续开发 `books` 表、`user-progress` 表等也可以用同样的方式与 AI 协作  
 
-### 单词书删除
+### 单词书删除与级联删除
 
 删除单词书时，需要同时删除该单词书关联的所有单词数据，避免 `words` 表中残留无主数据。
 
-实现方式有两种，本项目两者都做了：
+#### 什么是外键约束
 
-**1. 数据库层面 — `ON DELETE CASCADE`（级联删除）**
+在关系型数据库中，外键（Foreign Key）用来建立两张表之间的关联关系。例如 `words.bookId` 引用 `books.book_id`，意思是：`words` 表中的每一条单词记录，都必须属于 `books` 表中的某一本单词书。
 
-在 `words` 表的外键上设置 `ON DELETE CASCADE`，当 `books` 表中的一行被删除时，数据库引擎会自动删除 `words` 表中所有 `bookId` 匹配的行，不需要在代码里手动处理。
+外键有两个核心作用：
+
+- **数据完整性**：插入或修改 `words` 时，`bookId` 的值必须在 `books` 表中存在，否则数据库会拒绝操作。
+- **级联行为**：当 `books` 表中的数据被删除或更新时，`words` 表中关联的数据应该怎么处理。这个行为由 `ON DELETE` 和 `ON UPDATE` 来定义。
+
+#### ON DELETE 的几种策略
+
+| 策略 | 含义 |
+|---|---|
+| `NO ACTION`（默认） | 如果 `words` 中还有属于该单词书的单词，则禁止删除 `books` 中的记录 |
+| `RESTRICT` | 与 `NO ACTION` 类似，禁止删除 |
+| `CASCADE` | 删除 `books` 记录时，自动删除 `words` 中所有关联的单词 |
+| `SET NULL` | 删除 `books` 记录时，将 `words` 中关联的 `bookId` 设为 `NULL` |
+| `SET DEFAULT` | 删除 `books` 记录时，将 `words` 中关联的 `bookId` 设为默认值 |
+
+#### 本项目为什么选 CASCADE
+
+以本项目为例：
+
+- `books` 表有一本单词书，`bookId = "PEPXiaoXue3_1"`
+- `words` 表中有 4 条单词，`bookId` 都是 `"PEPXiaoXue3_1"`
+
+如果删除这本单词书：
+- 选 `NO ACTION` → 数据库报错，不允许删除（因为 words 还有数据依赖它）
+- 选 `SET NULL` → 单词还在，但 `bookId` 变成空，成了"孤儿数据"
+- 选 `CASCADE` → 单词书和 4 条单词一起删除，干干净净
+
+对于单词书与单词这种"主从关系"（单词离开单词书没有意义），`CASCADE` 是最合适的选择。
 
 对应的 SQL：
 
@@ -419,9 +446,19 @@ ALTER TABLE "words" ADD CONSTRAINT "words_bookId_books_book_id_fk"
 ```ts
 bookId: text("bookId").references(() => books.bookId, { onDelete: "cascade" })
 ```
- 
-**2. 代码层面 — 事务手动删除**
 
-API 删除接口中使用数据库事务，先删除 `words` 表中匹配的单词，再删除 `books` 表中的单词书。事务保证两步操作要么全部成功、要么全部回滚，即使 CASCADE 还没生效也能正常工作。
+#### 数据库 CASCADE + 代码事务 = 双重保障
 
-两种方式互不冲突，代码中的手动删除可视为数据库 CASCADE 的双重保障。
+本项目同时使用了两种方式：
+
+- **数据库层面**：外键 `ON DELETE CASCADE`，由数据库引擎自动处理，效率高、不会遗漏。
+- **代码层面**：API 接口中用事务手动先删 `words` 再删 `books`，即使 CASCADE 迁移还未执行也能正常工作。
+
+两种方式互不冲突，删除结果一致，代码中的手动删除可视为数据库 CASCADE 的补充保障。
+
+### Prompt 颗粒度
+- 上下文一定要准确且清晰
+- 规则或规范，表单字段，业务场景，功能描述
+  详细表达，不能让llm去猜
+- llm 擅长的，比如生成代码，不要约束太多，让他自己去跑
+
