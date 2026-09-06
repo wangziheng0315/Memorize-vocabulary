@@ -1,76 +1,88 @@
-import Link from 'next/link';
+import { auth } from 'app/auth';
+import {
+  getBookSummaries,
+  getProgressSummaries,
+  getUserId,
+  type ProgressSummary,
+} from 'app/db';
+import { BookCard, RecentBookCard } from 'app/components/book-cards';
 
-export default function Page() {
+export default async function HomePage() {
+  const [session, books] = await Promise.all([auth(), getBookSummaries()]);
+  const email = session?.user?.email;
+  const userId = email ? await getUserId(email) : undefined;
+  const progress = userId ? await getProgressSummaries(userId) : [];
+  const progressByBook = new Map<string, ProgressSummary>(
+    progress.map((item) => [item.bookId, item]),
+  );
+
   return (
-    <div className="flex h-screen bg-black">
-      <div className="w-screen h-screen flex flex-col justify-center items-center">
-        <svg
-          width="283"
-          height="64"
-          viewBox="0 0 283 64"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className="w-36 h-36"
-          aria-label="Vercel logo"
-        >
-          <path
-            d="M141.04 16c-11.04 0-19 7.2-19 18s8.96 18 20 18c6.67 0 12.55-2.64 16.19-7.09l-7.65-4.42c-2.02 2.21-5.09 3.5-8.54 3.5-4.79 0-8.86-2.5-10.37-6.5h28.02c.22-1.12.35-2.28.35-3.5 0-10.79-7.96-17.99-19-17.99zm-9.46 14.5c1.25-3.99 4.67-6.5 9.45-6.5 4.79 0 8.21 2.51 9.45 6.5h-18.9zM248.72 16c-11.04 0-19 7.2-19 18s8.96 18 20 18c6.67 0 12.55-2.64 16.19-7.09l-7.65-4.42c-2.02 2.21-5.09 3.5-8.54 3.5-4.79 0-8.86-2.5-10.37-6.5h28.02c.22-1.12.35-2.28.35-3.5 0-10.79-7.96-17.99-19-17.99zm-9.45 14.5c1.25-3.99 4.67-6.5 9.45-6.5 4.79 0 8.21 2.51 9.45 6.5h-18.9zM200.24 34c0 6 3.92 10 10 10 4.12 0 7.21-1.87 8.8-4.92l7.68 4.43c-3.18 5.3-9.14 8.49-16.48 8.49-11.05 0-19-7.2-19-18s7.96-18 19-18c7.34 0 13.29 3.19 16.48 8.49l-7.68 4.43c-1.59-3.05-4.68-4.92-8.8-4.92-6.07 0-10 4-10 10zm82.48-29v46h-9V5h9zM36.95 0L73.9 64H0L36.95 0zm92.38 5l-27.71 48L73.91 5H84.3l17.32 30 17.32-30h10.39zm58.91 12v9.69c-1-.29-2.06-.49-3.2-.49-5.81 0-10 4-10 10V51h-9V17h9v9.2c0-5.08 5.91-9.2 13.2-9.2z"
-            fill="white"
-          />
-        </svg>
-        <div className="text-center max-w-screen-sm mb-10">
-          <h1 className="text-stone-200 font-bold text-2xl">
-            Next.js + Postgres Auth Starter
+    <main className="mx-auto min-h-dvh max-w-md px-5 pb-28 pt-8">
+      <header className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-indigo-600">WORD FLOW</p>
+          <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-950">
+            今天学几个单词？
           </h1>
-          <p className="text-stone-400 mt-5">
-            This is a{' '}
-            <a
-              href="https://nextjs.org/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-stone-400 underline hover:text-stone-200 transition-all"
-            >
-              Next.js
-            </a>{' '}
-            starter kit that uses{' '}
-            <a
-              href="https://next-auth.js.org/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-stone-400 underline hover:text-stone-200 transition-all"
-            >
-              NextAuth.js
-            </a>{' '}
-            for simple email + password login and a{' '}
-            <a
-              href="https://vercel.com/postgres"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-stone-400 underline hover:text-stone-200 transition-all"
-            >
-              Postgres
-            </a>{' '}
-            database to persist the data.
+        </div>
+        {email ? (
+          <div
+            title={email}
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-lg font-bold uppercase text-white shadow-lg shadow-indigo-200"
+          >
+            {email.slice(0, 1)}
+          </div>
+        ) : null}
+      </header>
+
+      {progress.length > 0 ? (
+        <section className="mt-10" aria-labelledby="recent-title">
+          <div className="mb-4 flex items-end justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">
+                Keep going
+              </p>
+              <h2 id="recent-title" className="mt-1 text-xl font-bold text-slate-900">
+                最近学习
+              </h2>
+            </div>
+            <span className="text-xs text-slate-400">继续上次进度</span>
+          </div>
+          <div className="space-y-3">
+            {progress.slice(0, 3).map((item) => (
+              <RecentBookCard key={item.bookId} progress={item} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <section className="mt-10" aria-labelledby="books-title">
+        <div className="mb-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">
+            Library
           </p>
+          <h2 id="books-title" className="mt-1 text-xl font-bold text-slate-900">
+            全部单词书
+          </h2>
         </div>
-        <div className="flex space-x-3">
-          <Link
-            href="/protected"
-            className="text-stone-400 underline hover:text-stone-200 transition-all"
-          >
-            Protected Page
-          </Link>
-          <p className="text-white">·</p>
-          <a
-            href="https://vercel.com/templates/next.js/prisma-postgres-auth-starter"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-stone-400 underline hover:text-stone-200 transition-all"
-          >
-            Deploy to Vercel
-          </a>
-        </div>
-      </div>
-    </div>
+        {books.length > 0 ? (
+          <div className="space-y-4">
+            {books.map((book) => (
+              <BookCard
+                key={book.bookId}
+                book={book}
+                progress={progressByBook.get(book.bookId)}
+                signedIn={Boolean(userId)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 px-6 py-12 text-center">
+            <p className="font-semibold text-slate-700">还没有可学习的单词书</p>
+            <p className="mt-2 text-sm text-slate-500">内容准备好后会显示在这里。</p>
+          </div>
+        )}
+      </section>
+    </main>
   );
 }

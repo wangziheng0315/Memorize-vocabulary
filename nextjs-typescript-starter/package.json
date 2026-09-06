@@ -5,7 +5,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:migrate": "node scripts/migrate.mjs"
+    "db:migrate": "node scripts/migrate.mjs",
+    "test:progress": "node --experimental-strip-types scripts/check-progress.mjs"
   },
   "dependencies": {
     "@types/node": "^20.10.5",

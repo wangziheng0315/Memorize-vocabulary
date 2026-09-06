@@ -27,6 +27,7 @@ nextjs-typescript-starter/.pnpm-store/
 # Dependencies and build output
 node_modules/
 .next/
+*.tsbuildinfo
 
 # Environment variables
 .env
