@@ -4,7 +4,8 @@
     "dev": "next dev --turbo",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
     "@types/node": "^20.10.5",

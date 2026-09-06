@@ -476,9 +476,7 @@ bookId: text("bookId").references(() => books.bookId, { onDelete: "cascade" })
   - Electron：用 Web 技术打包桌面软件
 
 ## h5 web 应用
-- nextjs 提供了模板
-  不是从0开始开发 
-- clear/compack 上下文 
+
 ### nextjs templates
 
 Next.js 官方提供了一系列开箱即用的项目模板（templates），适合快速启动不同类型的项目，不需要从零搭建。
@@ -496,4 +494,77 @@ Next.js 官方提供了一系列开箱即用的项目模板（templates），适
 - `deploy-google-cloud-run`：部署到 Google Cloud Run（Docker）
 
 社区也有丰富的第三方模板，如电商模板（Shopify 集成）、博客模板、后台管理模板等，可以在 GitHub 上按 `nextjs-template` 标签搜索。
-  
+
+初始化：
+
+```bash
+npx create-next-app nextjs-typescript-starter --example "https://github.com/vercel/nextjs-postgres-auth-starter"
+```
+
+### clear/compack 上下文 
+
+什么时候需要 clear/compack 上下文？
+
+- 当需要清除或重置模型的上下文时，例如在处理敏感信息或需要重新开始生成时。
+- 当模型的上下文长度超过其最大限制时，需要清除旧的上下文以保持模型的性能和稳定性。
+- 当模型的上下文包含不相关或不准确的信息时，需要清除或重置上下文以确保模型的输出更符合预期。
+
+### 开始生成
+
+* 采用SDD规范驱动开发
+
+#### 需求文档
+帮我写一个需求文档，放到docs/proposal.md 目录中，我希望做一个h5的学英语单词的项目，要求：
+
+1.底部有2个tab栏，分别是首页，我的
+
+2.【首页】如果用户已经登录，展示【最近学习】模快，也就是最近学习单词书（如果没有数据不显示该模块），点击后用户可以继续学习，【最近学习】下方，是所有单词书，展示所有单词。
+
+3.【首页】如果用户没有登陆，只展示单词书，用户点击跳转到【我的】页面，弹出登录的popup，输入邮箱和密码实现登录和注册，登录和注册的代码参考已有逻辑#app/login/page.tsx和#app/register/page.tsx
+
+4.【我的】页面显示用户邮箱、退出登录、包括学习进度
+
+5.用户点击进入单词学习后，从最近学习的单词的下一个开始进入学习，以单词卡片的方式，用户可以点击下一个按钮实现切换，单词的json的完整数据如下：
+```json
+{
+    "wordRank": 1,
+    "headWord": "ruler",
+    "content": {
+      ...
+    },
+    "bookId": "PEPXiaoXue3_1"
+}
+```
+
+请你选择合适的字段实现渲染，单词卡片要尽可能的简单，只展示一个示例，详细学习可以点击单词，进入到单词详情页渲染。
+```json
+    "content": {
+      ...
+    },
+```
+
+这是详情页需要的content字段内容。
+
+请你帮我写一个详细的需求文档，并对各个页面画线框图展示UI布局。
+
+#### 技术设计文档
+
+接下来请你帮我编写/docs/design.md ，这是技术文档，要求：
+
+1.目前数据库已有两个数据表，分别是words单词数据表，和books单词书数据表。表定义分别是：
+
+```sql
+create table public.words (
+  ...
+) TABLESPACE pg_default;
+```
+
+和
+```sql
+create table public.books (
+  ...
+) TABLESPACE pg_default;
+```
+
+2. 根据/docs/proposal.md，完成用户背单词的其他表的设计工作
+3. 认真完成一份涉及前后端的技术设计文档

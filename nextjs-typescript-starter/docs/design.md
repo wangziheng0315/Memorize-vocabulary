@@ -155,7 +155,9 @@ books 1 ──── * words
 
 ### 4.5 迁移 SQL
 
-先在预发布数据库执行以下检查。第 1 项只在 `public."User"` 已由现有 starter 创建时执行；新数据库可跳过它，直接执行后续建表迁移。任一查询有结果时，先清理数据，再执行约束迁移；不要静默删除用户、单词或进度。
+先在预发布数据库执行以下检查。第 1 项只在 `public."User"` 已由现有 starter 创建时执行；新数据库可跳过它，直接执行后续建表迁移。前两项有结果时先清理数据再迁移；第 3 项用于核对导入状态，迁移会以实际 `words` 行数回填 `books.word_count`。
+
+实际迁移文件位于 [`migrations/`](../migrations)，由已安装的 `postgres` 驱动执行并记录到 `public.schema_migrations`。先运行 `npm run db:migrate -- --dry-run` 检查发现顺序，再在目标环境设置好 `POSTGRES_URL` 后执行 `npm run db:migrate`。运行器以 PostgreSQL advisory lock 串行化迁移；单个文件与迁移记录在同一事务中提交。
 
 ```sql
 -- 1. 用户邮箱在增加唯一约束前必须无重复或空值。
@@ -198,6 +200,18 @@ create unique index if not exists "User_email_unique"
   on public."User" (email);
 
 -- 002_word_book_integrity.sql
+update public.books b
+set word_count = counts.actual_word_count,
+    updated_at = now()
+from (
+  select b.id, count(w.id)::integer as actual_word_count
+  from public.books b
+  left join public.words w on w."bookId" = b.book_id
+  group by b.id
+) counts
+where b.id = counts.id
+  and b.word_count is distinct from counts.actual_word_count;
+
 alter table public.words
   alter column "bookId" set not null;
 
