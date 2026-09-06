@@ -22,6 +22,7 @@ bin-release/
 
 # Local pnpm cache
 vocabulary-admin/.pnpm-store/
+nextjs-typescript-starter/.pnpm-store/
 
 # Dependencies and build output
 node_modules/
