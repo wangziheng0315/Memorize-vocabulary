@@ -99,7 +99,7 @@ export function StudySession({
       </Link>
       <div className="mt-8">
         <button type="button" disabled={pending} onClick={advance} className="flex h-12 w-full items-center justify-center rounded-2xl bg-indigo-600 font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300">
-          {pending ? '保存中…' : isLastWord ? '完成本书' : '下一个'}
+          {pending ? '已切换，正在保存…' : isLastWord ? '完成本书' : '下一个'}
         </button>
         {message ? <p className="mt-3 text-center text-sm text-rose-600">{message}</p> : null}
       </div>
