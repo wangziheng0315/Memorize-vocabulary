@@ -79,7 +79,9 @@ export function BookCard({
         </div>
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold text-slate-900">{book.title}</h3>
-          <p className="mt-1 text-sm text-slate-500">{book.tags || `${book.wordCount} 个单词`}</p>
+          <p className="mt-1 text-sm text-slate-500">
+            {book.tags.length > 0 ? book.tags.join(' · ') : `${book.wordCount} 个单词`}
+          </p>
         </div>
       </div>
       {progress ? (

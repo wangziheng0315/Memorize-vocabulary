@@ -42,7 +42,7 @@ export const books = pgTable(
     wordCount: integer('word_count').notNull(),
     coverUrl: text('cover_url'),
     bookId: text('book_id').notNull(),
-    tags: text('tags'),
+    tags: text('tags').array().notNull().default([]),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -137,7 +137,7 @@ export type BookSummary = {
   title: string;
   wordCount: number;
   coverUrl: string | null;
-  tags: string | null;
+  tags: string[];
 };
 
 export type ProgressSummary = BookSummary & {
