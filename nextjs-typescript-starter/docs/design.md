@@ -546,4 +546,4 @@ app/
 - `user_word_progress` 仅保存当前周期的已学单词，不承担错题本或间隔复习历史。
 - 不新增 `study_events`：没有学习时长、分析或审计需求时，事件流水只会增加写入量和维护成本。
 - 不新增缓存层、消息队列、搜索服务或全局状态库：当前 PostgreSQL 查询量和页面数量都不需要它们。
-- 不播放 `ukspeech` / `usspeech`：它们目前只是来源标识，不是可直接播放的 URL；等音频资源服务明确后再接入。
+- 单词卡片和详情页通过浏览器原生 `Audio` 请求有道词典发音接口：`https://dict.youdao.com/dictvoice?audio={encodeURIComponent(word)}&type={1|2}`；`type=1` 为英式，`type=2` 为美式。音频不落库、不上传，也不依赖 `ukspeech` / `usspeech` 来源字段。

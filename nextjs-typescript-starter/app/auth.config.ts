@@ -11,7 +11,8 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       let isLoggedIn = !!auth?.user;
-      let isStudyPage = nextUrl.pathname.startsWith('/study');
+      let isStudyPage =
+        nextUrl.pathname === '/study' || nextUrl.pathname.startsWith('/study/');
 
       if (!isStudyPage || isLoggedIn) return true;
 

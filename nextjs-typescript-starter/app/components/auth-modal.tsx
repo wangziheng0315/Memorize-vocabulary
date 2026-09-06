@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { loginAction, registerAction, type AuthFormState } from 'app/actions/auth';
@@ -27,15 +27,49 @@ export function AuthModal({ initialMode, returnTo }: { initialMode: 'login' | 'r
   const [mode, setMode] = useState(initialMode);
   const [loginState, loginFormAction] = useFormState(loginAction, emptyState);
   const [registerState, registerFormAction] = useFormState(registerAction, emptyState);
+  const dialogRef = useRef<HTMLElement | null>(null);
   const state = mode === 'login' ? loginState : registerState;
   const formAction = mode === 'login' ? loginFormAction : registerFormAction;
 
   useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') router.replace('/me');
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    const autofocus = dialog?.querySelector<HTMLElement>('[autofocus]');
+    autofocus?.focus();
+
+    const closeOnEscapeAndTrapFocus = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        router.replace('/me');
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.offsetParent !== null);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
+    document.addEventListener('keydown', closeOnEscapeAndTrapFocus);
+    return () => {
+      document.removeEventListener('keydown', closeOnEscapeAndTrapFocus);
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
   }, [router]);
 
   const close = () => router.replace('/me');
@@ -44,6 +78,7 @@ export function AuthModal({ initialMode, returnTo }: { initialMode: 'login' | 'r
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4" onMouseDown={close}>
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-modal-title"
