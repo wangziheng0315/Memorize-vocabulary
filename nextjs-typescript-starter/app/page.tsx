@@ -5,7 +5,8 @@ import {
   getUserId,
   type ProgressSummary,
 } from 'app/db';
-import { BookCard, RecentBookCard } from 'app/components/book-cards';
+import { BookCard } from 'app/components/book-cards';
+import { RecentLearning } from 'app/components/recent-learning';
 
 export default async function HomePage() {
   const [session, books] = await Promise.all([auth(), getBookSummaries()]);
@@ -35,26 +36,7 @@ export default async function HomePage() {
         ) : null}
       </header>
 
-      {progress.length > 0 ? (
-        <section className="mt-10" aria-labelledby="recent-title">
-          <div className="mb-4 flex items-end justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">
-                Keep going
-              </p>
-              <h2 id="recent-title" className="mt-1 text-xl font-bold text-slate-900">
-                最近学习
-              </h2>
-            </div>
-            <span className="text-xs text-slate-400">继续上次进度</span>
-          </div>
-          <div className="space-y-3">
-            {progress.slice(0, 3).map((item) => (
-              <RecentBookCard key={item.bookId} progress={item} />
-            ))}
-          </div>
-        </section>
-      ) : null}
+      {userId ? <RecentLearning /> : null}
 
       <section className="mt-10" aria-labelledby="books-title">
         <div className="mb-4">

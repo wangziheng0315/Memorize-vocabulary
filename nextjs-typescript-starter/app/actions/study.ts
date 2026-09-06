@@ -126,6 +126,20 @@ export async function advanceStudy(input: {
         return;
       }
 
+      if (decision.restarts) {
+        await transaction`
+          delete from public.user_word_progress
+          where user_id = ${userId} and book_id = ${input.bookId}
+        `;
+      }
+
+      await transaction`
+        insert into public.user_word_progress (user_id, book_id, word_id, learned_at, updated_at)
+        values (${userId}, ${input.bookId}, ${wordId}::bigint, now(), now())
+        on conflict (user_id, book_id, word_id)
+        do update set learned_at = now(), updated_at = now()
+      `;
+
       await transaction`
         update public.user_book_progress
         set

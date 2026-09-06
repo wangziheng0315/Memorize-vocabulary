@@ -108,6 +108,29 @@ export const userBookProgress = pgTable(
   }),
 );
 
+export const userWordProgress = pgTable(
+  'user_word_progress',
+  {
+    id: bigserial('id', { mode: 'bigint' }).primaryKey(),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    bookId: text('book_id')
+      .notNull()
+      .references(() => books.bookId, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    wordId: bigint('word_id', { mode: 'bigint' })
+      .notNull()
+      .references(() => words.id, { onDelete: 'restrict', onUpdate: 'restrict' }),
+    learnedAt: timestamp('learned_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniqueWord: uniqueIndex('user_word_progress_unique').on(table.userId, table.bookId, table.wordId),
+    userBook: index('user_word_progress_user_book_idx').on(table.userId, table.bookId),
+  }),
+);
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
