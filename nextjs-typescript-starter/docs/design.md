@@ -313,7 +313,7 @@ from public.words w
 where w."bookId" = $1;
 ```
 
-服务端再由 `last_learned_word_id` 找到其位置，选择下一位置开始的 10 行。书中没有单词时返回 `EMPTY_BOOK`，页面显示“该单词书暂无单词”，不渲染学习卡片。客户端在当前批次耗尽时刷新学习页获取下一批，避免每次点击都产生一次整页查询。
+服务端再由 `last_learned_word_id` 找到其位置，选择下一位置开始的 10 行。书中没有单词时返回 `EMPTY_BOOK`，页面显示“该单词书暂无单词”，不渲染学习卡片。客户端在批次还剩 3 张时通过受保护的只读 Action 后台预取下一批；只有预取失败、批次耗尽或发生进度冲突时才刷新学习页。
 
 ### 5.4 JSON 适配层
 
@@ -387,7 +387,7 @@ type ActionResult<T = undefined> =
     };
 ```
 
-`PROGRESS_CONFLICT` 时客户端调用 `router.refresh()` 获取服务端当前卡片；`AUTH_REQUIRED` 时跳转至带 `auth=login` 的我的页。网络错误保留当前卡片并重新启用按钮，让用户重试。
+`PROGRESS_CONFLICT` 时客户端调用 `router.refresh()` 获取服务端当前卡片；`AUTH_REQUIRED` 时跳转至带 `auth=login` 的我的页。预取失败不影响当前批次，批次耗尽时以学习页刷新作为兜底。网络错误保留当前卡片并重新启用按钮，让用户重试。
 
 ## 6. 前端设计
 
@@ -430,7 +430,7 @@ app/
 
 - `AuthModal`：仅保存打开状态、登录/注册模式、输入值、提交中和错误文案。
 - `WordCard`：只接收服务端 DTO；不在浏览器缓存全书单词或进度。
-- `StudySession`：维护当前批次游标，批次内先切换卡片并调用 `advanceStudy`；保存失败回退游标，批次耗尽后 `router.refresh()` 获取下一批。
+- `StudySession`：维护当前批次游标，剩余 3 张时调用受保护的 `prefetchStudy` 追加下一批；批次内先切换卡片并调用 `advanceStudy`，保存失败回退游标，预取失败时在批次耗尽后以 `router.refresh()` 兜底。
 - 读页面以 Server Component 为源，学习页仅缓存最多 10 张轻量卡片；`revalidatePath` 负责首页、我的和下一批数据的新鲜度。
 - 所有页面底部预留 Tab 高度和 `env(safe-area-inset-bottom)`，学习卡片与按钮区域不被固定导航遮挡。
 

@@ -1,10 +1,11 @@
 'use server';
 
 import { auth } from 'app/auth';
-import { getUserId } from 'app/db';
+import { getNextStudyCards, getUserId } from 'app/db';
 import { decideProgress, type StoredProgress } from 'app/progress';
 import { sql } from 'app/db';
 import { revalidatePath } from 'next/cache';
+import type { WordCardData } from 'app/word-data';
 
 export type AdvanceStudyResult =
   | { ok: true; completed: boolean }
@@ -13,6 +14,29 @@ export type AdvanceStudyResult =
       code: 'AUTH_REQUIRED' | 'WORD_NOT_IN_BOOK' | 'PROGRESS_CONFLICT' | 'UNKNOWN_ERROR';
       message: string;
     };
+
+export type PrefetchStudyResult =
+  | { ok: true; cards: WordCardData[] }
+  | { ok: false; message: string };
+
+export async function prefetchStudy(input: {
+  bookId: string;
+  afterWordId: string;
+}): Promise<PrefetchStudyResult> {
+  if (!input.bookId || input.bookId.length > 200 || !/^\d{1,19}$/.test(input.afterWordId)) {
+    return { ok: false, message: '下一批单词加载失败。' };
+  }
+
+  const session = await auth();
+  const email = session?.user?.email;
+  if (!email || !(await getUserId(email))) return { ok: false, message: '请先登录。' };
+
+  try {
+    return { ok: true, cards: await getNextStudyCards(input.bookId, input.afterWordId) };
+  } catch {
+    return { ok: false, message: '下一批单词加载失败。' };
+  }
+}
 
 type PositionRow = { id: string | bigint; position: number; total: number };
 type ProgressRow = {

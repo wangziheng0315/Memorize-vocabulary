@@ -34,6 +34,7 @@ export default async function StudyPage({ params }: { params: { bookId: string }
       </header>
 
       <StudySession
+        key={`${context.position}:${context.cards[0]?.id ?? 'empty'}`}
         bookId={params.bookId}
         cards={context.cards}
         initialPosition={context.position}

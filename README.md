@@ -509,9 +509,42 @@ npx create-next-app nextjs-typescript-starter --example "https://github.com/verc
 - 当模型的上下文长度超过其最大限制时，需要清除旧的上下文以保持模型的性能和稳定性。
 - 当模型的上下文包含不相关或不准确的信息时，需要清除或重置上下文以确保模型的输出更符合预期。
 
-### 开始生成
+### 开始生成与生产部署
 
-* 采用SDD规范驱动开发
+本项目采用 SDD（Specification-Driven Development，规范驱动开发）推进 H5 功能。先沉淀需求和技术边界，再实现数据库、服务端动作和页面，最后按验收清单验证，避免边开发边改变数据模型。
+
+#### 开发流程
+
+1. **需求建模**：在 [`docs/proposal.md`](nextjs-typescript-starter/docs/proposal.md) 明确页面、路由、登录态、学习流程和验收标准。
+2. **技术设计**：在 [`docs/design.md`](nextjs-typescript-starter/docs/design.md) 固化表结构、数据流、权限边界、异常处理和性能策略。
+3. **数据库迁移**：按 `migrations/001_*.sql`、`002_*.sql`、`003_*.sql` 顺序执行，使用 `schema_migrations` 记录已执行文件。
+4. **服务端实现**：通过 `app/db.ts` 提供查询，通过 `app/actions/` 提供认证和学习进度 Server Action；用户身份始终从服务端 session 获取。
+5. **前端实现**：首页、我的、学习页和详情页使用 Server Component；弹窗、底部 Tab、学习卡片切换使用 Client Component。
+6. **验收验证**：执行类型检查、Lint、进度逻辑自检和生产构建，再进行游客访问、登录回跳和断点续学验证。
+
+#### 常用验证命令
+
+```bash
+cd nextjs-typescript-starter
+npm run db:migrate -- --dry-run
+npx tsc --noEmit
+npm run lint
+npm run test:progress
+npm run build
+```
+
+#### 生产部署检查
+
+部署前需要在平台配置 `POSTGRES_URL` 和 NextAuth 使用的密钥变量，不要把 `.env` 提交到仓库。推荐顺序如下：
+
+```bash
+npm ci
+npm run db:migrate
+npm run build
+npm start
+```
+
+迁移完成后，确认 `books.word_count` 与 `words` 实际数量一致；再检查 `/`、`/me`、`/study/[bookId]` 和详情页的匿名访问、登录回跳、进度保存及退出登录流程。生产环境还应在反向代理层为登录接口增加按 IP 和邮箱的限流。
 
 #### 需求文档
 帮我写一个需求文档，放到docs/proposal.md 目录中，我希望做一个h5的学英语单词的项目，要求：
@@ -576,3 +609,24 @@ create table public.books (
 #### 前端页面开发
 
 现在请你根据/docs/proposal.md实现前端的UI页面开发，完成现在的需求文档中的所有页面，数据结构可以参考/docs/design.md的数据表中的表结构代替
+
+### 优化
+
+#### 单词切换卡顿
+
+**现象**：点击“下一个”后需要等待几秒，连续学习体验不稳定。
+
+**原因**：旧流程每次点击都会执行进度事务，随后调用 `router.refresh()` 重新渲染学习页。远程 PostgreSQL 的网络往返被重复放大；数据库热连接单次查询约 100ms，首次建立连接可能超过 1s。
+
+**解决方案**：采用“轻量卡片预取 + 批次内客户端切换 + 服务端进度校验”。
+
+- 学习页首次从断点开始查询最多 10 张卡片，只返回单词、音标、首条释义和首条例句，不把完整词典 JSON 发到浏览器。
+- 当前批次内点击“下一个”时，客户端立即切换内存中的下一张卡片；`advanceStudy` 在服务端事务中校验用户、单词归属和连续顺序，并持久化进度。
+- 学习到批次还剩 3 张时，客户端通过受保护的 `prefetchStudy` 在后台加载下一批 10 张卡片，减少批次边界等待。
+- 保存失败时恢复到原卡片并显示错误；按钮仍保持 disabled，防止重复提交。
+- 只有预取失败或批次耗尽时才刷新学习页获取下一批；冲突或登录失效时同样刷新/跳转处理。
+- 详情页继续按 `bookId + words.id` 单词级按需查询，避免首屏加载整本书的详细内容。
+
+相关实现：[`app/db.ts`](nextjs-typescript-starter/app/db.ts)、[`app/actions/study.ts`](nextjs-typescript-starter/app/actions/study.ts)、[`app/components/study-session.tsx`](nextjs-typescript-starter/app/components/study-session.tsx)。
+
+**后续可选优化**：如果真实用户数据表明批次边界仍有明显等待，再将单词卡片摘要放入短 TTL 缓存；在没有性能数据前不引入全局状态库、消息队列或整本书缓存。

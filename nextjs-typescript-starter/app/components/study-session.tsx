@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
-import { advanceStudy } from 'app/actions/study';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { advanceStudy, prefetchStudy } from 'app/actions/study';
 import type { WordCardData } from 'app/word-data';
 
 export function StudySession({
@@ -20,13 +20,31 @@ export function StudySession({
   wasCompleted: boolean;
 }) {
   const router = useRouter();
-  const cards = initialCards;
+  const [cards, setCards] = useState(initialCards);
   const [cursor, setCursor] = useState(0);
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState('');
+  const prefetchedAnchor = useRef<string | null>(null);
   const card = cards[cursor];
   const position = initialPosition + cursor;
   const isLastWord = position + 1 === total;
+
+  useEffect(() => {
+    const remaining = cards.length - cursor;
+    const lastCard = cards.at(-1);
+    if (!card || !lastCard || remaining > 3 || prefetchedAnchor.current === lastCard.id) return;
+
+    prefetchedAnchor.current = lastCard.id;
+    void prefetchStudy({ bookId, afterWordId: lastCard.id }).then((result) => {
+      if (!result.ok || result.cards.length === 0) return;
+      setCards((current) => {
+        const known = new Set(current.map((item) => item.id));
+        return [...current, ...result.cards.filter((item) => !known.has(item.id))];
+      });
+    }).catch(() => {
+      prefetchedAnchor.current = null;
+    });
+  }, [bookId, card, cards, cursor]);
 
   function advance() {
     if (!card) return;

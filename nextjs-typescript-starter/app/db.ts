@@ -264,6 +264,35 @@ export async function getStudyContext(
   };
 }
 
+export async function getNextStudyCards(
+  bookId: string,
+  afterWordId: string,
+  limit = 10,
+): Promise<WordCardData[]> {
+  if (!/^\d{1,19}$/.test(afterWordId)) return [];
+  const safeLimit = Math.min(10, Math.max(1, limit));
+  const rows = (await sql`
+    with ordered_words as (
+      select
+        id,
+        "headWord" as "headWord",
+        content,
+        (row_number() over (order by "wordRank" asc nulls last, id asc) - 1)::integer as position
+      from public.words
+      where "bookId" = ${bookId}
+    ), anchor as (
+      select position from ordered_words where id = ${afterWordId}::bigint
+    )
+    select id, "headWord", content
+    from ordered_words
+    where position > (select position from anchor)
+      and position <= (select position from anchor) + ${safeLimit}
+    order by position
+  `) as unknown as Array<{ id: string | bigint; headWord: string | null; content: unknown }>;
+
+  return rows.map(toWordCard);
+}
+
 export async function getWordDetail(
   bookId: string,
   wordRowId: string,
