@@ -15,6 +15,10 @@ export function decideProgress(
   position: number,
   total: number,
 ): ProgressDecision {
+  if (progress.lastLearnedWordId === wordId && !(progress.isCompleted && total === 1)) {
+    return { kind: 'duplicate' };
+  }
+
   if (progress.isCompleted) {
     if (position !== 0) return { kind: 'conflict' };
 
@@ -25,8 +29,6 @@ export function decideProgress(
       restarts: true,
     };
   }
-
-  if (progress.lastLearnedWordId === wordId) return { kind: 'duplicate' };
 
   if (position !== progress.learnedCount) return { kind: 'conflict' };
 

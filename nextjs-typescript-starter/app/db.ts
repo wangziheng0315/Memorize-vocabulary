@@ -187,6 +187,7 @@ export async function getProgressSummaries(userId: number): Promise<ProgressSumm
 
 export type StudyContext = {
   book: BookSummary;
+  cards: WordCardData[];
   card: WordCardData | null;
   position: number;
   total: number;
@@ -220,7 +221,7 @@ export async function getStudyContext(
     .limit(1);
   const isCompleted = progress?.isCompleted ?? false;
   const lastWordId = progress?.lastLearnedWordId ? String(progress.lastLearnedWordId) : null;
-  const [word] = (await sql`
+  const rows = (await sql`
     with ordered_words as (
       select
         id,
@@ -232,13 +233,16 @@ export async function getStudyContext(
       where "bookId" = ${bookId}
     ), anchor as (
       select position from ordered_words where id = ${lastWordId}::bigint
+    ), target as (
+      select case
+        when ${isCompleted} or ${lastWordId}::bigint is null then 0
+        else coalesce((select position + 1 from anchor), 0)
+      end as start_position
     )
     select id, "headWord", content, position, total
-    from ordered_words
-    where position = case
-      when ${isCompleted} or ${lastWordId}::bigint is null then 0
-      else coalesce((select position + 1 from anchor), 0)
-    end
+    from ordered_words, target
+    where position >= start_position and position < start_position + 10
+    order by position
   `) as unknown as Array<{
     id: string | bigint;
     headWord: string | null;
@@ -246,12 +250,14 @@ export async function getStudyContext(
     position: number;
     total: number;
   }>;
-  const total = word?.total ?? 0;
-  const safePosition = word?.position ?? 0;
+  const cards = rows.map(toWordCard);
+  const total = rows[0]?.total ?? 0;
+  const safePosition = rows[0]?.position ?? 0;
 
   return {
     book,
-    card: word ? toWordCard(word) : null,
+    cards,
+    card: cards[0] ?? null,
     position: safePosition,
     total,
     wasCompleted: progress?.isCompleted ?? false,

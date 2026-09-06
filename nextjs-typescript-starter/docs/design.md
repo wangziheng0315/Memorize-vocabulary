@@ -297,10 +297,10 @@ create index user_book_progress_book_idx
 | `getBookSummaries()` | 首页 | 全部 `books` 的书名、封面、标签、`word_count` |
 | `getRecentBooks(userId)` | 首页登录态 | 进度联结单词书，按 `last_studied_at DESC` 取 3 本 |
 | `getMyProgress(userId)` | 我的 | 该用户所有进度，联结书名/封面，按最近学习排序 |
-| `getStudyContext(userId, bookId)` | 学习页 | 书信息、真实总词数、下一张卡、完成提示 |
+| `getStudyContext(userId, bookId)` | 学习页 | 书信息、真实总词数、从断点开始的一批卡片、完成提示 |
 | `getWordDetail(bookId, wordRowId)` | 详情页 | 限定书 ID 的单词详情 DTO |
 
-`getStudyContext` 不应把整本书的 JSON 发到 H5。它根据 `last_learned_word_id` 在固定顺序中定位下一项，只返回一张卡、`position` 和 `total`。查询可使用窗口函数产生连续位置：
+`getStudyContext` 不应把整本书的 JSON 发到 H5。它根据 `last_learned_word_id` 在固定顺序中定位下一项，返回从该位置开始最多 10 张经过 JSON 适配的卡片、首张卡片的 `position` 和 `total`。卡片只包含单词、音标、首条释义和首条例句，不包含详情页的完整词典结构。查询可使用窗口函数产生连续位置：
 
 ```sql
 select
@@ -313,7 +313,7 @@ from public.words w
 where w."bookId" = $1;
 ```
 
-服务端再由 `last_learned_word_id` 找到其位置，选择下一位置的行。书中没有单词时返回 `EMPTY_BOOK`，页面显示“该单词书暂无单词”，不渲染学习卡片。
+服务端再由 `last_learned_word_id` 找到其位置，选择下一位置开始的 10 行。书中没有单词时返回 `EMPTY_BOOK`，页面显示“该单词书暂无单词”，不渲染学习卡片。客户端在当前批次耗尽时刷新学习页获取下一批，避免每次点击都产生一次整页查询。
 
 ### 5.4 JSON 适配层
 
@@ -355,7 +355,7 @@ Action `advanceStudy` 的事务步骤：
 6. 校验该单词是“预期下一词”；已成功写入同一词时视为幂等成功；跳过或过期卡片返回 `PROGRESS_CONFLICT`。
 7. 若进度已完成且本次是第一词，清空完成时间并将 `started_at = now()` 以开启新周期；然后写入 `last_learned_word_id`、`learned_count = position + 1`、`last_studied_at = now()`、`updated_at = now()`。
 8. 如果位置是最后一项，同一事务设置 `is_completed = true` 与 `completed_at = now()`。
-9. 提交后 `revalidatePath('/')`、`revalidatePath('/me')`、`revalidatePath('/study/' + bookId)`；客户端刷新卡片。
+9. 提交后 `revalidatePath('/')`、`revalidatePath('/me')`、`revalidatePath('/study/' + bookId)`；客户端在当前批次内直接切换已预取卡片，仅在批次耗尽或冲突时刷新学习页。
 
 预期下一词校验让连续双击、网络重试和多标签页不会把进度倒退：
 
@@ -421,7 +421,7 @@ app/
 | --- | --- | --- |
 | 首页 | 所有书；登录后额外读取最近 3 条进度 | 游客点击开始学习，导航至 `/me?auth=login&returnTo=...` |
 | 我的 | `auth()`、邮箱、我的进度 | 弹窗登录/注册、退出、继续学习 |
-| 学习页 | `getStudyContext` 的一张卡和总数 | 点击卡片到详情；“下一个”调用 `advanceStudy` |
+| 学习页 | `getStudyContext` 的一批卡片和总数 | 点击卡片到详情；“下一个”调用 `advanceStudy` 并在批次内切换 |
 | 详情页 | `getWordDetail` | 仅浏览和返回，不写进度 |
 
 `AuthModal` 由 URL 查询参数驱动：`/me?auth=login&returnTo=%2Fstudy%2FPEPXiaoXue3_1`。弹窗关闭时使用 `router.replace('/me')` 去除参数；登录成功后经服务端校验 `returnTo` 再跳转。这样游客从首页点击书后刷新页面仍会保持正确的登录入口。
@@ -430,8 +430,8 @@ app/
 
 - `AuthModal`：仅保存打开状态、登录/注册模式、输入值、提交中和错误文案。
 - `WordCard`：只接收服务端 DTO；不在浏览器缓存全书单词或进度。
-- `NextButton`：使用 `useTransition` 在 action 执行中禁用，成功后 `router.refresh()`；失败时保留当前卡片。
-- 读页面以 Server Component 为源，mutation 后由 `revalidatePath` + `router.refresh()` 统一刷新首页、我的、学习页，避免手工同步多个进度副本。
+- `StudySession`：维护当前批次游标，批次内先切换卡片并调用 `advanceStudy`；保存失败回退游标，批次耗尽后 `router.refresh()` 获取下一批。
+- 读页面以 Server Component 为源，学习页仅缓存最多 10 张轻量卡片；`revalidatePath` 负责首页、我的和下一批数据的新鲜度。
 - 所有页面底部预留 Tab 高度和 `env(safe-area-inset-bottom)`，学习卡片与按钮区域不被固定导航遮挡。
 
 ## 7. 数据访问与性能
@@ -441,7 +441,7 @@ app/
 | 首页全部书 | 直接读取 `books` 摘要 | 书数量通常远小于单词数，不读取 `content` |
 | 最近学习 | 按用户过滤进度、联结书表、倒序取 3 | `user_book_progress_user_recent_idx` |
 | 我的进度 | 按用户过滤、联结书表 | 同上；不查询其他用户 |
-| 学习卡片 | 仅查询当前书的下一行和真实总数 | `words_book_rank_id_idx` |
+| 学习卡片 | 查询断点开始最多 10 行轻量卡片和真实总数 | `words_book_rank_id_idx` |
 | 详情 | 以 `words.id + bookId` 查询一行 | 主键查找后校验书归属 |
 
 单词书 JSON 不在首页、最近学习、我的进度接口中返回。详情页一次只返回一个词；这比把 2,000 个单词内容放进浏览器更简单且不会放大 H5 首屏体积。

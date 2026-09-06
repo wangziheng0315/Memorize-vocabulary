@@ -7,7 +7,7 @@ import { sql } from 'app/db';
 import { revalidatePath } from 'next/cache';
 
 export type AdvanceStudyResult =
-  | { ok: true }
+  | { ok: true; completed: boolean }
   | {
       ok: false;
       code: 'AUTH_REQUIRED' | 'WORD_NOT_IN_BOOK' | 'PROGRESS_CONFLICT' | 'UNKNOWN_ERROR';
@@ -90,7 +90,7 @@ export async function advanceStudy(input: {
       const decision = decideProgress(stored, input.wordId, word.position, word.total);
 
       if (decision.kind === 'duplicate') {
-        result = { ok: true };
+        result = { ok: true, completed: stored.isCompleted };
         return;
       }
       if (decision.kind === 'conflict') {
@@ -114,7 +114,7 @@ export async function advanceStudy(input: {
           updated_at = now()
         where user_id = ${userId} and book_id = ${input.bookId}
       `;
-      result = { ok: true };
+      result = { ok: true, completed: decision.isCompleted };
     });
 
     if (result.ok) {
