@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { advanceStudy, prefetchStudy } from 'app/actions/study';
 import type { WordCardData } from 'app/word-data';
+import { PronunciationButtons } from 'app/components/pronunciation-buttons';
 
 export function StudySession({
   bookId,
@@ -93,11 +94,15 @@ export function StudySession({
           🎉 这本书已经学完，现在可以从头复习。
         </div>
       ) : null}
-      <Link
-        href={`/study/${encodeURIComponent(bookId)}/word/${card.id}`}
-        aria-label={`查看 ${card.headWord} 的详细释义`}
-        className="group block min-h-[390px] rounded-[2rem] border border-white bg-white p-7 shadow-2xl shadow-indigo-100 ring-1 ring-slate-100 transition hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-      >
+      <div className="rounded-[2rem] border border-white bg-white p-7 shadow-2xl shadow-indigo-100 ring-1 ring-slate-100">
+        <div className="flex justify-end">
+          <PronunciationButtons word={card.headWord} />
+        </div>
+        <Link
+          href={`/study/${encodeURIComponent(bookId)}/word/${card.id}`}
+          aria-label={`查看 ${card.headWord} 的详细释义`}
+          className="group block min-h-[350px] rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
         <div className="mt-14 text-center">
           <h2 className="break-words text-5xl font-bold tracking-tight text-slate-950">{card.headWord}</h2>
           {card.usPhone || card.ukPhone ? (
@@ -114,7 +119,8 @@ export function StudySession({
             {card.example.zh ? <p className="mt-2 text-sm leading-6 text-slate-500">{card.example.zh}</p> : null}
           </div>
         ) : null}
-      </Link>
+        </Link>
+      </div>
       <div className="mt-8">
         <button type="button" disabled={pending} onClick={advance} className="flex h-12 w-full items-center justify-center rounded-2xl bg-indigo-600 font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:bg-indigo-300">
           {pending ? '已切换，正在保存…' : isLastWord ? '完成本书' : '下一个'}

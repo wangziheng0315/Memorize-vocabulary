@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { auth } from 'app/auth';
 import { getWordDetail } from 'app/db';
+import { PronunciationButtons } from 'app/components/pronunciation-buttons';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -39,6 +40,9 @@ export default async function WordDetailPage({ params }: { params: { bookId: str
       <section className="py-12 text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.25em] text-indigo-400">Word</p>
         <h1 className="mt-4 break-words text-5xl font-bold tracking-tight text-slate-950">{word.headWord}</h1>
+        <div className="mt-5">
+          <PronunciationButtons word={word.headWord} />
+        </div>
         {word.usPhone || word.ukPhone ? (
           <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm text-slate-500">
             {word.usPhone ? <span>美 /{word.usPhone}/</span> : null}
