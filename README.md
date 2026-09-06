@@ -462,3 +462,38 @@ bookId: text("bookId").references(() => books.bookId, { onDelete: "cascade" })
   详细表达，不能让llm去猜
 - llm 擅长的，比如生成代码，不要约束太多，让他自己去跑
 
+## 多端适配
+
+- **PC 端**
+  - 网页版，SEO 友好，适合办公场景
+- **移动端**
+  - H5 手机网页端
+  - 手机端适配
+- **客户端**
+  - Android / iOS
+  - React Native / Flutter：一套代码，多端运行
+- **桌面端**
+  - Electron：用 Web 技术打包桌面软件
+
+## h5 web 应用
+- nextjs 提供了模板
+  不是从0开始开发 
+- clear/compack 上下文 
+### nextjs templates
+
+Next.js 官方提供了一系列开箱即用的项目模板（templates），适合快速启动不同类型的项目，不需要从零搭建。
+
+查看和获取模板的方式：
+
+- **GitHub**：[github.com/nextjs](https://github.com/nextjs) 上有官方维护的所有模板
+- **命令行创建**：`pnpm create next-app --example <模板名>`/`npx create-next-app@latest --example <模板名>`
+
+常用官方模板：
+
+- `saas-starter`：Next.js + Postgres + Stripe + shadcn/ui，SaaS 起步
+- `deploy-github-pages`：部署到 GitHub Pages 的静态站
+- `deploy-render`：部署到 Render 的 Node.js 服务
+- `deploy-google-cloud-run`：部署到 Google Cloud Run（Docker）
+
+社区也有丰富的第三方模板，如电商模板（Shopify 集成）、博客模板、后台管理模板等，可以在 GitHub 上按 `nextjs-template` 标签搜索。
+  
