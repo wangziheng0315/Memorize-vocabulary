@@ -70,6 +70,7 @@ export default function BooksPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingBook, setEditingBook] = useState<Book | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Book | null>(null)
+  const [deleteError, setDeleteError] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
@@ -91,7 +92,7 @@ export default function BooksPage() {
     }
   }, [])
 
-  useEffect(() => { loadBooks() }, [loadBooks])
+  useEffect(() => { void Promise.resolve().then(loadBooks) }, [loadBooks])
 
   // 搜索过滤
   const filteredBooks = books.filter(
@@ -162,11 +163,14 @@ export default function BooksPage() {
       const res = await fetch(`/api/books?id=${encodeURIComponent(deleteTarget.id)}`, {
         method: "DELETE",
       })
-      if (res.ok) {
-        setBooks(books.filter((b) => b.id !== deleteTarget.id))
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setDeleteError(data.error ?? "删除失败，请稍后重试")
+        return
       }
+      setBooks((current) => current.filter((book) => book.id !== deleteTarget.id))
     } catch {
-      // 忽略错误
+      setDeleteError("网络错误，请稍后重试")
     } finally {
       setDeleteTarget(null)
     }
@@ -192,6 +196,7 @@ export default function BooksPage() {
           新增单词书
         </Button>
       </div>
+      {deleteError && <p role="alert" className="text-sm text-red-500">{deleteError}</p>}
 
       {/* 搜索栏 + 统计卡片 */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -316,7 +321,10 @@ export default function BooksPage() {
                         <Button
                           variant="ghost"
                           size="icon-xs"
-                          onClick={() => setDeleteTarget(book)}
+                          onClick={() => {
+                            setDeleteError("")
+                            setDeleteTarget(book)
+                          }}
                         >
                           <Trash2 className="size-3.5 text-red-500" />
                         </Button>

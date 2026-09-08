@@ -29,12 +29,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useAuth, type AdminUser, type AdminRole } from "@/lib/auth-context"
 import { Plus, UserX, UserCheck, Shield, Mail, Lock, User, Pencil, ArrowRightLeft } from "lucide-react"
 
+const roleOrder: Record<AdminRole, number> = { "系统管理员": 0, "超级管理员": 1, "普通管理员": 2 }
+const sortAdmins = (list: AdminUser[]) => [...list].sort((a, b) => roleOrder[a.role] - roleOrder[b.role])
+
 /**
  * 管理员管理页面
  * 系统管理员可以添加和删除普通管理员
  */
 export default function AdminUsersPage() {
   const { user, getAllAdmins, addAdmin, updateAdmin, removeAdmin, setAdminStatus, refreshUser } = useAuth()
+  const canManageAdmins = user?.role === "系统管理员" || user?.role === "超级管理员"
   const [admins, setAdmins] = useState<AdminUser[]>([])
 
   // 弹窗状态
@@ -52,14 +56,11 @@ export default function AdminUsersPage() {
   const [formError, setFormError] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // 按角色优先级排序：系统管理员 → 超级管理员 → 普通管理员
-  const roleOrder: Record<AdminRole, number> = { "系统管理员": 0, "超级管理员": 1, "普通管理员": 2 }
-  const sortAdmins = (list: AdminUser[]) => [...list].sort((a, b) => roleOrder[a.role] - roleOrder[b.role])
-
   // 加载管理员列表
   useEffect(() => {
+    if (!canManageAdmins) return
     getAllAdmins().then((list) => setAdmins(sortAdmins(list)))
-  }, [getAllAdmins])
+  }, [canManageAdmins, getAllAdmins])
 
   // 获取姓名首字母
   const getInitials = (name: string) => name.slice(0, 2).toUpperCase()
@@ -142,6 +143,10 @@ export default function AdminUsersPage() {
       setFormError(result.error || "转让失败")
     }
     setTransferTarget(null)
+  }
+
+  if (!canManageAdmins) {
+    return <p className="text-sm text-muted-foreground">无权访问管理员管理，请联系系统管理员。</p>
   }
 
   return (

@@ -23,11 +23,10 @@ function createLazyDb() {
         const client = postgres(connectionString)
         _db = drizzle(client)
       }
-      return (_db as any)[prop]
+      return (_db as unknown as Record<PropertyKey, unknown>)[prop]
     },
   })
 }
 
 // 保持导出方式不变，其他文件还是 import { db } from "@/db"
 export const db = createLazyDb()
-

@@ -1,5 +1,4 @@
 import fs from "node:fs"
-import path from "node:path"
 
 const inputPath = "d:\\虚拟C盘\\workspace\\ai-coding\\memorize-vocabulary\\vocabulary-admin\\temp\\PEPXiaoXue3_2.json"
 const outputPath = inputPath.replace(/\.json$/i, ".csv")

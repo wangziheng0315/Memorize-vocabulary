@@ -16,6 +16,12 @@ export interface AdminUser {
 }
 
 type Result = { success: boolean; error?: string }
+type ApiData = {
+  user?: AdminUser | null
+  hasAdmin?: boolean
+  admins?: AdminUser[]
+  error?: string
+}
 
 interface AuthContextType {
   user: AdminUser | null
@@ -37,8 +43,8 @@ const AuthContext = createContext<AuthContextType | null>(null)
 /** 读取接口响应，统一转换成页面需要的结果格式。 */
 async function requestJson(url: string, options?: RequestInit) {
   const response = await fetch(url, { ...options, headers: { "Content-Type": "application/json", ...options?.headers } })
-  let data: any = {}
-  try { data = await response.json() } catch { /* 服务端返回非 JSON 时忽略，由 response.ok 判断 */ }
+  let data: ApiData = {}
+  try { data = await response.json() as ApiData } catch { /* 服务端返回非 JSON 时忽略，由 response.ok 判断 */ }
   return { response, data }
 }
 
@@ -51,8 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     requestJson("/api/auth/status")
       .then(({ data }) => {
-        setUser(data.user)
-        setHasAdmin(data.hasAdmin)
+        setUser(data.user ?? null)
+        setHasAdmin(data.hasAdmin ?? false)
       })
       .finally(() => setIsLoading(false))
   }, [])
@@ -60,13 +66,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** 重新从服务端获取当前用户信息（用于角色变更后刷新）。 */
   const refreshUser = async () => {
     const { data } = await requestJson("/api/auth/status")
-    setUser(data.user)
-    setHasAdmin(data.hasAdmin)
+    setUser(data.user ?? null)
+    setHasAdmin(data.hasAdmin ?? false)
   }
 
   const signIn = async (email: string, password: string): Promise<Result> => {
     const { response, data } = await requestJson("/api/auth/signin", { method: "POST", body: JSON.stringify({ email, password }) })
-    if (!response.ok) return { success: false, error: data.error }
+    if (!response.ok || !data.user) return { success: false, error: data.error ?? "登录失败" }
     setUser(data.user)
     setHasAdmin(true)
     return { success: true }
@@ -74,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUpFirstAdmin = async (name: string, email: string, password: string): Promise<Result> => {
     const { response, data } = await requestJson("/api/auth/signup", { method: "POST", body: JSON.stringify({ name, email, password }) })
-    if (!response.ok) return { success: false, error: data.error }
+    if (!response.ok || !data.user) return { success: false, error: data.error ?? "注册失败" }
     setUser(data.user)
     setHasAdmin(true)
     return { success: true }
@@ -87,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const getAllAdmins = useCallback(async () => {
     const { response, data } = await requestJson("/api/admin-users")
-    return response.ok ? data.admins : []
+    return response.ok ? (data.admins ?? []) : []
   }, [])
 
   const addAdmin = async (name: string, email: string, password: string, role = "普通管理员" as AdminRole): Promise<Result> => {
