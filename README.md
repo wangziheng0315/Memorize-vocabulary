@@ -1,11 +1,46 @@
 # Memorize vocabulary
 
-next.js 单词后台管理系统和h5应用开发
+Next.js 单词后台管理系统和 H5 应用开发
+
+> 本 README 保留了项目从数据处理、Supabase、Drizzle 到前后端开发的完整记录；下面新增的“当前项目使用说明”和“交付检查”用于说明现在可以直接运行的 H5 学习应用。
+
+## 当前项目使用说明
+
+仓库包含两个相互配合的应用：`vocabulary-admin` 负责单词书和单词数据管理，`nextjs-typescript-starter` 是面向用户的 H5 背单词应用。H5 应用当前已经支持：
+
+- 首页、我的两个底部 Tab，以及游客/登录两种首页状态。
+- 从 `books` 表读取全部单词书；登录用户通过最近学习 API 查看最近 3 本书。
+- 邮箱密码登录、注册、退出登录，以及登录后回跳到原学习页面。
+- 以批次方式读取 `words` 表单词，点击“下一个”立即切换，并在服务端保存书级和单词级学习进度。
+- 单词详情页按需读取完整 JSON；学习卡片和详情页支持有道英式/美式发音。
+
+H5 应用的主要目录：
+
+```text
+nextjs-typescript-starter/
+├─ app/page.tsx                         # 首页与单词书列表
+├─ app/me/page.tsx                      # 我的、学习进度、退出登录
+├─ app/study/[bookId]/                  # 学习页
+├─ app/study/[bookId]/word/[wordId]/    # 单词详情页
+├─ app/api/progress/recent/             # 最近学习 API
+├─ app/actions/                         # 登录、注册、学习进度 Server Actions
+├─ app/db.ts                            # Drizzle schema 与服务端查询
+└─ migrations/                          # PostgreSQL 迁移脚本
+```
+
+H5 应用运行所需的环境变量：
+
+| 变量 | 用途 |
+|---|---|
+| `POSTGRES_URL` | Supabase/PostgreSQL 连接串，服务端查询和迁移共用 |
+| `AUTH_SECRET` | NextAuth 会话签名密钥，生产环境必须使用随机高强度值 |
+
+文档中较早的 `DATABASE_URL` 内容是数据库连接方式的历史说明；当前 H5 代码和迁移脚本读取的是 `POSTGRES_URL`，部署时请以代码为准。
 
 ## 应用形式
 - 后台管理系统
-- h5 应用
-- 多段开发(pc端、移动端)
+- H5 应用
+- 多端开发（PC 端、移动端）
 
 ## 亮点
 - 数据清洗 
@@ -501,9 +536,9 @@ Next.js 官方提供了一系列开箱即用的项目模板（templates），适
 npx create-next-app nextjs-typescript-starter --example "https://github.com/vercel/nextjs-postgres-auth-starter"
 ```
 
-### clear/compack 上下文 
+### clear/compact 上下文
 
-什么时候需要 clear/compack 上下文？
+什么时候需要 clear/compact 上下文？
 
 - 当需要清除或重置模型的上下文时，例如在处理敏感信息或需要重新开始生成时。
 - 当模型的上下文长度超过其最大限制时，需要清除旧的上下文以保持模型的性能和稳定性。
@@ -517,7 +552,7 @@ npx create-next-app nextjs-typescript-starter --example "https://github.com/verc
 
 1. **需求建模**：在 [`docs/proposal.md`](nextjs-typescript-starter/docs/proposal.md) 明确页面、路由、登录态、学习流程和验收标准。
 2. **技术设计**：在 [`docs/design.md`](nextjs-typescript-starter/docs/design.md) 固化表结构、数据流、权限边界、异常处理和性能策略。
-3. **数据库迁移**：按 `migrations/001_*.sql`、`002_*.sql`、`003_*.sql` 顺序执行，使用 `schema_migrations` 记录已执行文件。
+3. **数据库迁移**：按 `migrations/001_*.sql` 到 `005_*.sql` 顺序执行，使用 `schema_migrations` 记录已执行文件；其中 `004` 负责兼容 `books.tags` 数组类型，`005` 创建单词级学习进度表。
 4. **服务端实现**：通过 `app/db.ts` 提供查询，通过 `app/actions/` 提供认证和学习进度 Server Action；用户身份始终从服务端 session 获取。
 5. **前端实现**：首页、我的、学习页和详情页使用 Server Component；弹窗、底部 Tab、学习卡片切换使用 Client Component。
 6. **验收验证**：执行类型检查、Lint、进度逻辑自检和生产构建，再进行游客访问、登录回跳和断点续学验证。
@@ -533,6 +568,8 @@ npm run test:progress
 npm run build
 ```
 
+如果使用 PowerShell 设置环境变量，可先在当前终端执行 `$env:POSTGRES_URL="你的 PostgreSQL 连接串"`；bash/zsh 可使用 `export POSTGRES_URL="你的 PostgreSQL 连接串"`。不要把真实连接串、密码或 `AUTH_SECRET` 提交到 Git。
+
 #### 生产部署检查
 
 部署前需要在平台配置 `POSTGRES_URL` 和 NextAuth 使用的密钥变量，不要把 `.env` 提交到仓库。推荐顺序如下：
@@ -545,6 +582,36 @@ npm start
 ```
 
 迁移完成后，确认 `books.word_count` 与 `words` 实际数量一致；再检查 `/`、`/me`、`/study/[bookId]` 和详情页的匿名访问、登录回跳、进度保存及退出登录流程。生产环境还应在反向代理层为登录接口增加按 IP 和邮箱的限流。
+
+#### H5 运行流程
+
+```text
+首页 → 选择单词书 →（游客）我的页登录弹窗 → 学习页
+学习页 → 批次加载 words → 点击单词查看详情
+      → 点击下一个 → Server Action 校验并同步两张进度表
+      → 最近学习 API 返回当前用户的书级进度
+```
+
+关键接口和数据表：
+
+| 用途 | 地址/表 | 说明 |
+|---|---|---|
+| 单词书列表 | `books` | 首页读取摘要、标签和总词数 |
+| 学习单词 | `words` | 按 `wordRank ASC, id ASC` 稳定排序，分批加载 |
+| 书级进度 | `user_book_progress` | 保存断点、已学数量、完成状态和最近学习时间 |
+| 单词级进度 | `user_word_progress` | 保存当前周期已成功推进的单词，唯一键防重复 |
+| 最近学习 | `GET /api/progress/recent` | 只读取当前 session 用户，默认返回最近 3 本 |
+
+#### 发布前验收清单
+
+- [x] 游客首页只显示单词书，点击学习会进入我的页并打开登录弹窗。
+- [x] 登录用户可以查看邮箱、学习进度、最近学习并继续学习。
+- [x] 学习页从断点的下一个单词开始，批次耗尽前后台预取下一批。
+- [x] 点击“下一个”后立即切换，服务端事务同步书级和单词级进度。
+- [x] 单词详情按需加载完整 JSON，英式/美式发音按钮调用有道接口。
+- [x] 已执行数据库迁移，并通过类型检查、Lint、进度自检和生产构建。
+
+当前明确不包含：社交登录、找回密码、邮箱验证、背诵算法、错题本、收藏和排行榜。需要这些能力时，应新增独立的数据模型和验收标准，不直接扩展当前进度字段。
 
 #### 需求文档
 帮我写一个需求文档，放到docs/proposal.md 目录中，我希望做一个h5的学英语单词的项目，要求：

@@ -34,7 +34,7 @@ interface Book {
   wordCount: number
   coverUrl: string | null
   bookId: string
-  tags: string | null
+  tags: string | string[] | null
   createdAt: string
   updatedAt: string
 }
@@ -284,7 +284,8 @@ export default function BooksPage() {
                       <div className="font-medium">{book.title}</div>
                       {book.tags && (
                         <div className="mt-1 flex flex-wrap gap-1">
-                          {book.tags.split(",").filter(Boolean).map((tag) => (
+                          {/* 兼容 tags 是字符串逗号分隔或数组两种情况 */}
+                          {(Array.isArray(book.tags) ? book.tags : book.tags.split(",")).filter(Boolean).map((tag) => (
                             <Badge key={tag} variant="outline" className="text-xs font-normal">
                               {tag.trim()}
                             </Badge>
