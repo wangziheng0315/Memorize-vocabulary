@@ -117,7 +117,7 @@ export default function BooksPage() {
       wordCount: String(book.wordCount),
       coverUrl: book.coverUrl ?? "",
       bookId: book.bookId,
-      tags: book.tags ?? "",
+      tags: Array.isArray(book.tags) ? book.tags.join(",") : (book.tags ?? ""),
     })
     setError("")
     setDialogOpen(true)
