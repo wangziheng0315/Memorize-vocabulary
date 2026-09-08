@@ -3,17 +3,31 @@ import postgres from "postgres"
 // drizzle：Drizzle ORM 的核心，把数据库连接包装成可操作的 db 对象
 import { drizzle } from "drizzle-orm/postgres-js"
 
-// 从 .env 文件读取数据库连接地址（如 postgresql://user:password@host:5432/dbname）
-const connectionString = process.env.DATABASE_URL
+/**
+ * 懒加载数据库连接——只在第一次调用 db 方法时才初始化。
+ *
+ * 这样做的原因是：next build 构建时会预加载所有 API 路由模块，
+ * 如果模块加载时就检查 DATABASE_URL，构建时 .env 还没加载好就会报错。
+ * 改成懒加载后，只有真正请求 API 时才会去读 .env 初始化连接。
+ */
+function createLazyDb() {
+  let _db: ReturnType<typeof drizzle> | null = null
 
-// 如果 .env 里没有配置 DATABASE_URL，直接报错，避免后续操作失败
-if (!connectionString) {
-  throw new Error("缺少 DATABASE_URL 环境变量")
+  return new Proxy({} as ReturnType<typeof drizzle>, {
+    get(_, prop) {
+      if (!_db) {
+        const connectionString = process.env.DATABASE_URL
+        if (!connectionString) {
+          throw new Error("缺少 DATABASE_URL 环境变量")
+        }
+        const client = postgres(connectionString)
+        _db = drizzle(client)
+      }
+      return (_db as any)[prop]
+    },
+  })
 }
 
-// 用连接字符串创建数据库客户端（相当于"拨通电话"）
-const client = postgres(connectionString)
+// 保持导出方式不变，其他文件还是 import { db } from "@/db"
+export const db = createLazyDb()
 
-// 把客户端交给 Drizzle 包装，导出 db 对象
-// 之后所有数据库操作（查询、插入、更新、删除）都通过这个 db 对象进行
-export const db = drizzle(client)
