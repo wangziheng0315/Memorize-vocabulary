@@ -37,7 +37,7 @@ export function Sidebar() {
 
   // 处理退出登录（layout 的 useEffect 会自动跳转到登录页）
   const handleSignOut = () => {
-    signOut()
+    if (window.confirm("确定退出登录吗？")) void signOut()
   }
 
   // 获取用户姓名首字母作为头像

@@ -3,7 +3,7 @@ import { auth } from 'app/auth';
 import { getProgressSummaries, getUserId } from 'app/db';
 import { AuthModal } from 'app/components/auth-modal';
 import { ProgressBar } from 'app/components/book-cards';
-import { signOutAction } from 'app/actions/auth';
+import { SignOutForm } from 'app/components/sign-out-form';
 
 type SearchParams = { auth?: string | string[]; returnTo?: string | string[] };
 
@@ -98,11 +98,7 @@ export default async function MePage({ searchParams }: { searchParams: SearchPar
             )}
           </section>
 
-          <form action={signOutAction} className="mt-8">
-            <button type="submit" className="h-12 w-full rounded-2xl border border-rose-200 bg-white font-semibold text-rose-600 transition hover:bg-rose-50">
-              退出登录
-            </button>
-          </form>
+          <SignOutForm />
         </>
       ) : (
         <section className="mt-8 overflow-hidden rounded-3xl bg-slate-950 p-7 text-white shadow-xl shadow-slate-200">
